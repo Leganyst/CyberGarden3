@@ -75,3 +75,17 @@ async def get_users_in_workspace(
     result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.workspace_id == workspace_id))
     workspace_users = result.scalars().all()
     return [WorkspaceUserResponse.model_validate(wu) for wu in workspace_users]
+
+
+async def get_users_in_workspace(db: AsyncSession, workspace_id: int) -> List[WorkspaceUserResponse]:
+    """
+    Извлекает всех пользователей для указанного рабочего пространства с их уровнями доступа.
+    :param db: Сессия базы данных.
+    :param workspace_id: ID рабочего пространства.
+    :return: Список пользователей с уровнями доступа в формате Pydantic моделей.
+    """
+    result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.workspace_id == workspace_id))
+    workspace_users = result.scalars().all()
+
+    # Преобразуем записи ORM в Pydantic-модели
+    return [WorkspaceUserResponse.model_validate(user) for user in workspace_users]

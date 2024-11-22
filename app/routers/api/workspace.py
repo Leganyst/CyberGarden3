@@ -1,136 +1,88 @@
-from urllib.parse import uses_relative
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
-from app.schemas.user import UserCreate, UserResponse
-from app.routers.dependencies.jwt_functions import (
-    create_access_token,
-    create_refresh_token,
-    get_current_user,
-    decode_token
-)
-from app.crud.user import create_user, get_user_by_email, get_user_by_id
-from app.core.security import verify_password
+from typing import List
 from app.core.database import get_db
-
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"]
+from app.schemas.workspace import (
+    WorkspaceCreate,
+    WorkspaceUpdate,
+    WorkspaceResponse,
 )
-
-@router.post(
-    "/register",
-    summary="Регистрация нового пользователя",
-    response_description="Информация о зарегистрированном пользователе",
-    responses={
-        200: {
-            "description": "Успешная регистрация",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": 1,
-                        "email": "user@example.com",
-                        "username": "user",
-                        "access_token": "access_token_example",
-                        "refresh_token": "refresh_token_example",
-                        "token_type": "bearer"
-                    }
-                }
-            }
-        },
-        400: {
-            "description": "Пользователь с таким email или именем пользователя уже существует",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "User with this email or username already exists."
-                    }
-                }
-            }
-        }
-    }
+from app.crud.workspace import (
+    create_workspace,
+    update_workspace,
+    delete_workspace,
+    get_workspace_by_id,
 )
-async def register(
-    user_data: UserCreate,
+from app.crud.workspace_user import get_users_in_workspace
+from app.routers.dependencies.jwt_functions import get_current_user
+from app.routers.dependencies.permissions import check_workspace_owner
+from app.models.user import User
+
+router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
+
+
+@router.post("/", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+async def create_workspace_endpoint(
+    workspace_data: WorkspaceCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Регистрация нового пользователя.
-    
-    Принимает данные для создания нового пользователя, создает запись в базе данных
-    и возвращает информацию о зарегистрированном пользователе.
-
-    - **email**: Электронная почта пользователя
-    - **username**: Имя пользователя
-    - **password**: Пароль пользователя
+    Создание нового рабочего пространства. Доступно только авторизованным пользователям.
     """
-    try:
-        user = await create_user(db, user_data)
-    except IntegrityError:
-        raise HTTPException(status_code=400, detail="User with this email or username already exists.")
-    user_dict = user.__dict__
-    user_dict.pop("_sa_instance_state")
-    user_dict.pop("password")
-    
-    access_token = create_access_token({"sub": user.id})
-    refresh_token = create_refresh_token({"sub": user.id})
-    user_dict.update({"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"})
-    return user_dict
+    workspace_data.created_by = current_user.id
+    workspace = await create_workspace(db, workspace_data)
+    return workspace
 
 
-@router.post("/login", summary="Авторизация пользователя")
-async def login(
-    email: str,
-    password: str,
+@router.get("/{workspace_id}", response_model=WorkspaceResponse)
+async def get_workspace_endpoint(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Авторизация пользователя.
-    
-    Проверяет учетные данные пользователя и выдает JWT-токены.
+    Получение информации о рабочем пространстве. Только для владельцев.
     """
-    user = await get_user_by_email(db, email)
-    if not user or not verify_password(password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    workspace = await get_workspace_by_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
-    access_token = create_access_token({"sub": user.id})
-    refresh_token = create_refresh_token({"sub": user.id})
+    # Проверяем, является ли пользователь владельцем
+    if workspace.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-    }
+    return workspace
 
 
-@router.get("/me", response_model=UserResponse, summary="Получить информацию о текущем пользователе")
-async def read_current_user(
-    current_user: UserResponse = Depends(get_current_user),
-):
-    """
-    Возвращает данные текущего авторизованного пользователя.
-    """
-    return current_user
-
-
-@router.post("/refresh", summary="Обновление токена доступа")
-async def refresh_access_token(
-    refresh_token: str,
+@router.get("/", response_model=List[WorkspaceResponse])
+async def list_user_workspaces(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Обновляет токен доступа (access token) с использованием рефреш-токена.
+    Получение списка всех рабочих пространств текущего пользователя.
     """
-    
+    # Здесь предполагается, что CRUD-функция list_user_workspaces реализована.
+    user_workspaces = await get_users_in_workspace(db, current_user.id)
+    return user_workspaces
 
-    payload = decode_token(refresh_token)
-    user_id: int = int(payload.get("sub"))
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = await get_user_by_id(db, user_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@router.patch("/{workspace_id}", response_model=WorkspaceResponse)
+async def update_workspace_endpoint(
+    workspace_id: int,
+    workspace_data: WorkspaceUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Обновление рабочего пространства. Только для владельцев.
+    """
+    workspace = await get_workspace_by_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
-    new_access_token = create_access_token({"sub": user.id})
-    return {"access_token": new_access_token, "token_type": "bearer"}
+    # Проверяем, является ли пользователь владельцем
+    if workspace.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+

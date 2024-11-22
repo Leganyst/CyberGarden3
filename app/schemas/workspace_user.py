@@ -35,4 +35,4 @@ class WorkspaceUserResponse(WorkspaceUserBase):
     updated_at: datetime = Field(..., description="Дата последнего изменения записи")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
