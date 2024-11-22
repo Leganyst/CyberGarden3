@@ -91,5 +91,5 @@ async def get_current_user(
     user_dict = user.__dict__
     user_dict.pop("_sa_instance_state")
     user_dict.pop("password")
-
+# жопа
     return UserResponse.model_validate(user_dict)

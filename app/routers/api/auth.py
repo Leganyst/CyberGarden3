@@ -1,4 +1,3 @@
-from urllib.parse import uses_relative
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -18,7 +17,39 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
-@router.post("/register", response_model=UserResponse, summary="Регистрация нового пользователя")
+
+@router.post(
+    "/register",
+    summary="Регистрация нового пользователя",
+    response_description="Информация о зарегистрированном пользователе",
+    responses={
+        200: {
+            "description": "Успешная регистрация",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "email": "user@example.com",
+                        "username": "user",
+                        "access_token": "access_token_example",
+                        "refresh_token": "refresh_token_example",
+                        "token_type": "bearer"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Пользователь с таким email уже существует",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "User with this email already exists."
+                    }
+                }
+            }
+        }
+    }
+)
 async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
@@ -28,15 +59,29 @@ async def register(
     
     Принимает данные для создания нового пользователя, создает запись в базе данных
     и возвращает информацию о зарегистрированном пользователе.
+
+    - **email**: Электронная почта пользователя
+    - **username**: Имя пользователя
+    - **password**: Пароль пользователя
     """
     try:
         user = await create_user(db, user_data)
     except IntegrityError:
-        raise HTTPException(status_code=400, detail="User with this email or username already exists.")
-    user_dict = user.__dict__
-    user_dict.pop("_sa_instance_state")
-    user_dict.pop("password")
-    return UserResponse.model_validate(user_dict)
+        raise HTTPException(status_code=400, detail="User with this email already exists.")
+    
+    # Создание токенов
+    access_token = create_access_token({"sub": user.id})
+    refresh_token = create_refresh_token({"sub": user.id})
+    
+    # Возврат информации о пользователе
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.name,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/login", summary="Авторизация пользователя")
@@ -82,8 +127,6 @@ async def refresh_access_token(
     """
     Обновляет токен доступа (access token) с использованием рефреш-токена.
     """
-    
-
     payload = decode_token(refresh_token)
     user_id: int = int(payload.get("sub"))
     if not user_id:

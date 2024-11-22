@@ -1,99 +1,83 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from typing import Optional, List
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
-from app.core.security import hash_password
+from app.schemas.user import UserResponse, UserWithWorkspaces, UserCreate
+from app.core.security import hash_password, verify_password
+from sqlalchemy.exc import IntegrityError
 
 
-async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
+async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[UserResponse]:
     """
-    Создает нового пользователя в базе данных.
-    
+    Извлекает пользователя по ID.
+    :param db: Сессия базы данных.
+    :param user_id: ID пользователя.
+    :return: Данные пользователя в формате Pydantic модели или None.
+    """
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if user:
+        return UserResponse.model_validate(user)
+    return None
+
+
+async def get_user_with_workspaces(db: AsyncSession, user_id: int) -> Optional[UserWithWorkspaces]:
+    """
+    Извлекает пользователя с его рабочими пространствами.
+    :param db: Сессия базы данных.
+    :param user_id: ID пользователя.
+    :return: Данные пользователя с рабочими пространствами в формате Pydantic модели или None.
+    """
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.workspaces))
+        .where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if user:
+        # Преобразуем `workspaces` в список словарей
+        workspaces = [
+            {"workspace_id": workspace.workspace_id, "access_level": workspace.access_level}
+            for workspace in user.workspaces
+        ]
+        user_data = UserWithWorkspaces.model_validate(user)
+        user_data.workspaces = workspaces
+        return user_data
+    return None
+
+
+async def create_user(db: AsyncSession, user_data: UserCreate) -> UserResponse:
+    """
+    Создает нового пользователя.
     :param db: Сессия базы данных.
     :param user_data: Данные для создания пользователя.
-    :return: Объект пользователя (ORM).
+    :return: Созданный пользователь в формате Pydantic модели.
     """
     hashed_password = hash_password(user_data.password)
     new_user = User(
+        name=user_data.name,
         email=user_data.email,
-        username=user_data.username,
-        password=hashed_password
+        password=hashed_password,
     )
-    db.add(new_user)
     try:
+        db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
+        return UserResponse.model_validate(new_user)
     except IntegrityError:
         await db.rollback()
-        raise
-    return new_user
+        raise IntegrityError("User with this email already exists.", params=None)
 
 
-async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
+async def get_user_by_email(db: AsyncSession, email: str) -> User:
     """
-    Возвращает пользователя по его ID.
-    
+    Извлекает пользователя по email.
     :param db: Сессия базы данных.
-    :param user_id: Уникальный идентификатор пользователя.
-    :return: Объект пользователя (ORM) или None.
+    :param email: Email пользователя.
+    :return: Пользователь или None, если не найден.
     """
-    return await db.get(User, user_id)
-
-
-async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
-    """
-    Возвращает пользователя по его email.
-    
-    :param db: Сессия базы данных.
-    :param email: Электронная почта пользователя.
-    :return: Объект пользователя (ORM) или None.
-    """
-    stmt = select(User).where(User.email == email)
-    result = await db.execute(stmt)
+    result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
-
-
-async def update_user(db: AsyncSession, user_id: int, user_data: UserUpdate) -> User | None:
-    """
-    Обновляет данные пользователя в базе данных.
-    
-    :param db: Сессия базы данных.
-    :param user_id: Уникальный идентификатор пользователя.
-    :param user_data: Данные для обновления пользователя.
-    :return: Обновленный объект пользователя (ORM) или None.
-    """
-    user = await db.get(User, user_id)
-    if not user:
-        return None
-
-    # Обновляем только переданные данные
-    for field, value in user_data.dict(exclude_unset=True).items():
-        if field == "password":
-            value = hash_password(value)  # Хэшируем новый пароль
-        setattr(user, field, value)
-    
-    try:
-        await db.commit()
-        await db.refresh(user)
-    except IntegrityError:
-        await db.rollback()
-        raise
-    return user
-
-
-async def delete_user(db: AsyncSession, user_id: int) -> bool:
-    """
-    Удаляет пользователя из базы данных.
-    
-    :param db: Сессия базы данных.
-    :param user_id: Уникальный идентификатор пользователя.
-    :return: True, если пользователь удален, иначе False.
-    """
-    user = await db.get(User, user_id)
-    if not user:
-        return False
-    
-    await db.delete(user)
-    await db.commit()
-    return True
