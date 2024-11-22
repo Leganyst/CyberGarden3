@@ -7,12 +7,16 @@ from app.core.database import engine, Base
 from app.models import user, workspace, workspace_user, project, task, reminder
 from app.routers.api.auth import router as auth_router
 from app.routers.api.ping import router as ping_router
+from app.routers.api.workspace import router as workspace_router
+from app.routers.api.project import router as project_router
+from app.routers.api.task import router as task_router
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
@@ -38,3 +42,6 @@ async def custom_swagger_ui_html():
 
 app.include_router(auth_router)
 app.include_router(ping_router)
+app.include_router(workspace_router)
+app.include_router(project_router)
+app.include_router(task_router)

@@ -36,7 +36,7 @@ class TaskResponse(TaskBase):
     updated_at: datetime = Field(..., description="Дата последнего обновления задачи")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TaskWithReminders(TaskResponse):

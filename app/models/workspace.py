@@ -18,6 +18,17 @@ class Workspace(Base):
         TIMESTAMP(timezone=True), default=datetime.now, onupdate=datetime.now, nullable=False, comment="Дата последнего обновления"
     )
 
-    creator: Mapped["User"] = relationship("User", back_populates="workspaces", lazy="joined")
-    users: Mapped[list["WorkspaceUser"]] = relationship("WorkspaceUser", back_populates="workspace", lazy="selectin")
-    projects: Mapped[list["Project"]] = relationship("Project", back_populates="workspace", lazy="selectin")
+    # Связь с создателем (User)
+    creator: Mapped["User"] = relationship(
+        "User", back_populates="created_workspaces", lazy="joined"
+    )
+
+    # Связь с WorkspaceUser
+    users: Mapped[list["WorkspaceUser"]] = relationship(
+        "WorkspaceUser", back_populates="workspace", lazy="selectin"
+    )
+
+    # Связь с проектами
+    projects: Mapped[list["Project"]] = relationship(
+        "Project", back_populates="workspace", lazy="selectin"
+    )

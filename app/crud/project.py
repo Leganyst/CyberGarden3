@@ -4,7 +4,9 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectWithTasks
-
+from app.models.task import Task
+from app.schemas.task import TaskResponse
+from fastapi import HTTPException
 
 async def create_project(db: AsyncSession, project_data: ProjectCreate) -> ProjectResponse:
     """
@@ -103,3 +105,36 @@ async def get_project_with_tasks(
         return project_data
     return None
  
+async def get_tasks_for_project(db: AsyncSession, project_id: int) -> List[TaskResponse]:
+    """
+    Извлекает все задачи для указанного проекта с оптимизированной загрузкой связанных данных.
+    :param db: Сессия базы данных.
+    :param project_id: ID проекта.
+    :return: Список задач в формате Pydantic моделей.
+    """
+    result = await db.execute(
+        select(Task)
+        .where(Task.project_id == project_id)
+        .options(selectinload(Task.reminders))
+    )
+    tasks = result.scalars().all()
+
+    # Конвертируем задачи в Pydantic модели
+    return [TaskResponse.model_validate(task) for task in tasks]
+
+
+async def get_workspace_id_by_project_id(db: AsyncSession, project_id: int) -> int:
+    """
+    Извлекает ID рабочего пространства для указанного проекта.
+    :param db: Сессия базы данных.
+    :param project_id: ID проекта.
+    :return: ID рабочего пространства.
+    :raises HTTPException: Если проект не найден.
+    """
+    result = await db.execute(select(Project.workspace_id).where(Project.id == project_id))
+    workspace_id = result.scalar_one_or_none()
+
+    if workspace_id is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return workspace_id

@@ -88,8 +88,9 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_dict = user.__dict__
-    user_dict.pop("_sa_instance_state")
-    user_dict.pop("password")
-# жопа
-    return UserResponse.model_validate(user_dict)
+    # user_dict = user.__dict__
+    # user_dict.pop("_sa_instance_state")
+    # user_dict.pop("password")
+    
+
+    return UserResponse.model_validate(user)

@@ -36,8 +36,8 @@ class UserResponse(UserBase):
     updated_at: datetime = Field(..., description="Дата последнего обновления пользователя")
 
     class Config:
-        orm_mode = True
-
+        from_attributes = True
+        exclude = {"password", "created_projects", "created_workspaces", "created_tasks"}
 
 class UserWithWorkspaces(UserResponse):
     """

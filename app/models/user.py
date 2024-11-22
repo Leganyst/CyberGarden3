@@ -3,6 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, Text, TIMESTAMP
 from datetime import datetime
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -17,6 +18,22 @@ class User(Base):
         TIMESTAMP(timezone=True), default=datetime.now, onupdate=datetime.now, nullable=False, comment="Дата последнего обновления"
     )
 
-    workspaces: Mapped[list["WorkspaceUser"]] = relationship("WorkspaceUser", back_populates="user", lazy="selectin")
-    created_projects: Mapped[list["Project"]] = relationship("Project", back_populates="creator", lazy="selectin")
-    created_tasks: Mapped[list["Task"]] = relationship("Task", back_populates="creator", lazy="selectin")
+    # Связь с Workspace через промежуточную таблицу WorkspaceUser
+    workspaces: Mapped[list["WorkspaceUser"]] = relationship(
+        "WorkspaceUser", back_populates="user", lazy="selectin"
+    )
+
+    # Связь с созданными рабочими пространствами
+    created_workspaces: Mapped[list["Workspace"]] = relationship(
+        "Workspace", back_populates="creator", lazy="selectin"
+    )
+
+    # Связь с созданными проектами
+    created_projects: Mapped[list["Project"]] = relationship(
+        "Project", back_populates="creator", lazy="selectin"
+    )
+
+    # Связь с созданными задачами
+    created_tasks: Mapped[list["Task"]] = relationship(
+        "Task", back_populates="creator", lazy="selectin"
+    )

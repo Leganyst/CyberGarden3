@@ -34,7 +34,7 @@ class WorkspaceResponse(WorkspaceBase):
     updated_at: datetime = Field(..., description="Дата последнего обновления рабочего пространства")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class WorkspaceWithProjects(WorkspaceResponse):

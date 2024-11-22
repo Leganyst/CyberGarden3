@@ -36,7 +36,7 @@ class ProjectResponse(ProjectBase):
     updated_at: datetime = Field(..., description="Дата последнего обновления проекта")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ProjectWithTasks(ProjectResponse):
