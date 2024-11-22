@@ -1,23 +1,46 @@
 from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
+from typing import Optional, List
 
 
 class UserBase(BaseModel):
-    email: EmailStr = Field(..., description="Электронная почта пользователя. Должна быть уникальной.")
-    username: str | None = Field(None, description="Необязательное имя пользователя. Уникальное.")
+    """
+    Базовая схема для пользователя, используется как основа для других схем.
+    """
+    name: str = Field(..., max_length=100, description="Имя пользователя")
+    email: EmailStr = Field(..., description="Электронная почта пользователя")
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., description="Пароль пользователя.")
+    """
+    Схема для создания нового пользователя.
+    """
+    password: str = Field(..., min_length=6, description="Пароль пользователя")
 
 
 class UserUpdate(BaseModel):
-    email: EmailStr | None = Field(None, description="Новый email пользователя.")
-    username: str | None = Field(None, description="Новое имя пользователя.")
-    password: str | None = Field(None, description="Новый пароль пользователя.")
+    """
+    Схема для обновления данных пользователя.
+    """
+    name: Optional[str] = Field(None, max_length=100, description="Новое имя пользователя")
+    email: Optional[EmailStr] = Field(None, description="Новая электронная почта пользователя")
+    password: Optional[str] = Field(None, min_length=6, description="Новый пароль пользователя")
 
 
 class UserResponse(UserBase):
-    id: int = Field(..., description="Уникальный идентификатор пользователя.")
+    """
+    Схема для ответа с данными пользователя.
+    """
+    id: int = Field(..., description="Уникальный идентификатор пользователя")
+    created_at: datetime = Field(..., description="Дата создания пользователя")
+    updated_at: datetime = Field(..., description="Дата последнего обновления пользователя")
 
     class Config:
-        orm_mode = True  # Включает поддержку ORM-объектов
+        orm_mode = True
+
+
+class UserWithWorkspaces(UserResponse):
+    """
+    Схема для ответа с данными пользователя и рабочими пространствами.
+    """
+    workspaces: List[dict] = Field(..., description="Список рабочих пространств, связанных с пользователем")
