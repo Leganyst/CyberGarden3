@@ -1,10 +1,12 @@
 # app/main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.background import P
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from app.core.database import engine, Base
 from app.routers.api.auth import router as auth_router
+from app.routers.api.ping import router as ping_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,3 +36,4 @@ async def custom_swagger_ui_html():
     )
 
 app.include_router(auth_router)
+app.include_router(ping_router)
