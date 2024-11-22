@@ -9,7 +9,7 @@ from app.routers.api.auth import router as auth_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
@@ -18,10 +18,10 @@ app = FastAPI(lifespan=lifespan, swagger_ui_parameters={"syntaxHighlight.theme":
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешить все источники
+    allow_origins=["http://localhost:3000"],  # Разрешить все источники
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # allow_methods=["*"],
+    # allow_headers=["*"],
 )
 
 
