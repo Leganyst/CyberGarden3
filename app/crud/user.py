@@ -24,6 +24,9 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[UserRespons
         return UserResponse.model_validate(user)
     return None
 
+async def get_user_by_telegram_id(db: AsyncSession, telegram_id: int) -> User | None:
+    result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+    return result.scalar_one_or_none()
 
 async def get_user_with_workspaces(db: AsyncSession, user_id: int) -> Optional[UserWithWorkspaces]:
     """
@@ -57,11 +60,12 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> UserResponse:
     :param user_data: Данные для создания пользователя.
     :return: Созданный пользователь в формате Pydantic модели.
     """
-    hashed_password = hash_password(user_data.password)
+    hashed_password = hash_password(user_data.get("password"))
     new_user = User(
-        name=user_data.name,
-        email=user_data.email,
-        password=hashed_password,
+        name=user_data["name"],
+        email=user_data.get("email"),
+        telegram_id=hash_password if not user_data.get("telegram_id") else None,
+        password=user_data.get("password", None),  # Может быть None для Telegram
     )
     try:
         db.add(new_user)
