@@ -22,5 +22,5 @@ class Comment(Base):
     )
 
     # Связи
-    task: Mapped["Task"] = relationship("Task", back_populates="comments", lazy="joined")
-    user: Mapped["User"] = relationship("User", back_populates="comments", lazy="joined")
+    task: Mapped["Task"] = relationship("Task", back_populates="comments", lazy="selectin")
+    user: Mapped["User"] = relationship("User", back_populates="comments", lazy="selectin")

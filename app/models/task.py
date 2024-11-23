@@ -35,7 +35,7 @@ class Task(Base):
         TIMESTAMP(timezone=True), default=datetime.now, onupdate=datetime.now, nullable=False, comment="Дата последнего обновления"
     )
 
-    project: Mapped["Project"] = relationship("Project", back_populates="tasks", lazy="joined")
+    project: Mapped["Project"] = relationship("Project", back_populates="tasks", lazy="selectin")
     # Связи
     creator: Mapped["User"] = relationship(
         "User",
@@ -50,4 +50,4 @@ class Task(Base):
     )    
 
     reminders: Mapped[list["Reminder"]] = relationship("Reminder", back_populates="task", lazy="selectin")
-    assigned: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], lazy="joined")
+    assigned: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], lazy="selectin")

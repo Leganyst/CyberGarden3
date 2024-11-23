@@ -20,7 +20,7 @@ class Workspace(Base):
 
     # Связь с создателем (User)
     creator: Mapped["User"] = relationship(
-        "User", back_populates="created_workspaces", lazy="joined"
+    "User", back_populates="created_workspaces", lazy="selectin"
     )
 
     # Связь с WorkspaceUser

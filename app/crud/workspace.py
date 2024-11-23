@@ -102,3 +102,14 @@ async def get_workspaces_user(db: AsyncSession, user: User):
     result = await db.execute(select(Workspace).where(Workspace.created_by == user.id))
     workspaces = result.scalars().all()
     return [WorkspaceResponse.model_validate(w) for w in workspaces]
+
+
+async def get_user_workspaces(db: AsyncSession, user: User):
+    """
+    Получаем все воркспейсы юзера
+    :param db: Сессия базы данных
+    :param user: Объект пользователя из БД 
+    """
+    result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.user_id == user.id))
+    workspaces = result.scalars().all()
+    return [WorkspaceUser.model_validate(w) for w in workspaces]

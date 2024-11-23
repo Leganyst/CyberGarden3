@@ -34,7 +34,11 @@ async def create_workspace_endpoint(
     workspace_data.created_by = current_user.id
     workspace = await create_workspace(db, workspace_data)
     
-    return workspace
+    return {
+        "workspace_id": workspace.id,
+        "name": workspace.name,
+        "created_by": workspace.created_by
+    }
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
 async def get_workspace_endpoint(
@@ -90,3 +94,4 @@ async def update_workspace_endpoint(
 
     return {"workspace_id": workspace_id,
             "name": workspace_data.name}
+
