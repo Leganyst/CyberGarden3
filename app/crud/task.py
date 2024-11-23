@@ -18,6 +18,8 @@ async def create_task(db: AsyncSession, task_data: TaskCreate) -> TaskResponse:
     :return: Созданная задача в формате Pydantic модели.
     """
     # Создание задачи
+    if task_data.assigned_to == 0 or not task_data.assigned_to:
+        task_data.assigned_to = None
     new_task = Task(
         name=task_data.name,
         project_id=task_data.project_id,
@@ -110,7 +112,7 @@ async def get_task_by_id(db: AsyncSession, task_id: int) -> Optional[TaskRespons
     result = await db.execute(select(Task).where(Task.id == task_id))
     task = result.scalar_one_or_none()
     if task:
-        return TaskResponse.model_validate(task)
+        return task
     return None
 
 
