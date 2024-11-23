@@ -43,5 +43,11 @@ class Task(Base):
         lazy="joined",
         foreign_keys="[Task.created_by]",  # Явно указываем внешний ключ
     )
+
+
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment", back_populates="task", lazy="selectin"
+    )    
+
     reminders: Mapped[list["Reminder"]] = relationship("Reminder", back_populates="task", lazy="selectin")
     assigned: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], lazy="joined")

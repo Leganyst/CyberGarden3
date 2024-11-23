@@ -39,3 +39,11 @@ class User(Base):
         lazy="selectin",
         foreign_keys="[Task.created_by]",  # Указываем, что использовать Task.created_by
     )
+    
+    # Связь с комментариями
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment",
+        back_populates="user",
+        lazy="selectin",  # Подгружаем связанные комментарии
+    )
+

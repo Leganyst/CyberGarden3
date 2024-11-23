@@ -10,7 +10,8 @@ from app.routers.api.ping import router as ping_router
 from app.routers.api.workspace import router as workspace_router
 from app.routers.api.project import router as project_router
 from app.routers.api.task import router as task_router
-
+from app.routers.api.user import router as user_router
+from app.routers.api.comments import router as comments_router
 
 
 @asynccontextmanager
@@ -45,3 +46,5 @@ app.include_router(ping_router)
 app.include_router(workspace_router)
 app.include_router(project_router)
 app.include_router(task_router)
+app.include_router(user_router)
+app.include_router(comments_router)
