@@ -44,3 +44,8 @@ class UserWithWorkspaces(UserResponse):
     Схема для ответа с данными пользователя и рабочими пространствами.
     """
     workspaces: List[dict] = Field(..., description="Список рабочих пространств, связанных с пользователем")
+
+
+class UserLogin(BaseModel):
+    email: str = Field(..., description="Электронная почта пользователя")
+    password: str = Field(..., description="Пароль пользователя")
