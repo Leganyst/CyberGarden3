@@ -14,6 +14,7 @@ from app.crud.project import (
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.routers.dependencies.permissions import check_workspace_owner, check_workspace_access
 from app.models.user import User
+from app.schemas.task import TaskResponse
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -98,7 +99,7 @@ async def delete_project_endpoint(
     return {"message": "Project deleted successfully"}
 
 
-@router.get("/{project_id}/tasks", response_model=List[dict])
+@router.get("/{project_id}/tasks", response_model=List[TaskResponse])
 async def get_project_tasks_endpoint(
     project_id: int,
     current_user: User = Depends(get_current_user),
