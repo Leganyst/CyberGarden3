@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from app.models.user import User
 from app.models.task import Task
 from app.models.reminder import Reminder
-from app.schemas.reminder import ReminderResponse
 from app.core.database import get_db
 from app.routers.dependencies.jwt_functions import get_current_user
+
 
 router = APIRouter(
     tags=["User"],
@@ -54,3 +54,5 @@ async def get_user_reminders(
     ]
 
     return reminders_data
+
+
