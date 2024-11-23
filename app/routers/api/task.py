@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from typing import List
+from sqlalchemy import select
 from datetime import date
 from app.core.database import get_db
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
@@ -9,16 +9,14 @@ from app.schemas.comments import CommentsListResponse
 from app.crud.task import (
     create_task,
     update_task,
-    delete_task,
     get_task_by_id,
+    delete_task,
     get_tasks_for_project,
     get_user_tasks_by_date,
     get_task_with_reminders,
 )
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.models.user import User
-from app.models.project import Project
-from app.models.workspace import Workspace
 from app.models.comments import Comment
 from app.routers.dependencies.permissions import (
     check_project_access,
@@ -39,9 +37,6 @@ async def create_task_endpoint(
     """
     # Проверка прав доступа (создатель или редактор проекта)
     await check_project_editor_or_owner(task_data.project_id, current_user, db)
-
-    # Устанавливаем текущего пользователя как создателя задачи
-    task_data.created_by = current_user.id
 
     # Создание задачи (и напоминания, если указано reminder_time)
     task = await create_task(db, task_data, current_user.id)
@@ -80,12 +75,12 @@ async def update_task_endpoint(
     Редактирование задачи. Доступно для создателей и редакторов проекта.
     """
     # Извлечение задачи
-    task = await get_task_by_id(db, task_id)
-    if not task:
+    existing_task = await get_task_by_id(db, task_id)
+    if not existing_task:
         raise HTTPException(status_code=404, detail="Задача не найдена.")
 
     # Проверяем права на редактирование
-    await check_project_editor_or_owner(task.project_id, current_user, db)
+    await check_project_editor_or_owner(existing_task.project_id, current_user, db)
 
     # Обновление задачи
     updated_task = await update_task(db, task_id, task_data)
@@ -110,9 +105,7 @@ async def mark_task_as_completed(
         raise HTTPException(status_code=404, detail="Задача не найдена.")
 
     # Проверка прав доступа к проекту
-    has_access = await check_project_access(task.project_id, current_user, db)
-    if not has_access:
-        raise HTTPException(status_code=403, detail="Доступ запрещен.")
+    await check_project_access(task.project_id, current_user, db)
 
     # Читатель может изменить только свои задачи
     if task.assigned_to != current_user.id:

@@ -1,24 +1,19 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 from typing import Optional, List
-from app.models.task import Task
+from app.models.task import Task, TaskStatus, TaskPriority
 from app.models.project import Project
 from app.models.workspace import Workspace
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
-from app.schemas.reminder import ReminderResponse
 from app.models.reminder import Reminder
-from datetime import date, datetime
+from datetime import date
 from fastapi import HTTPException, status
 
 
 async def create_task(db: AsyncSession, task_data: TaskCreate, current_user_id: int) -> TaskResponse:
     """
     Создает новую задачу с опциональным напоминанием и поддержкой вложенных задач.
-    :param db: Сессия базы данных.
-    :param task_data: Данные для создания задачи.
-    :param current_user_id: ID текущего пользователя.
-    :return: Созданная задача в формате Pydantic модели.
     """
     # Проверяем, если указан parent_task_id, то родительская задача должна существовать
     if task_data.parent_task_id:
@@ -28,6 +23,12 @@ async def create_task(db: AsyncSession, task_data: TaskCreate, current_user_id: 
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Родительская задача не найдена."
             )
+
+    if task_data.parent_task_id == 0:
+        task_data.parent_task_id = None
+    
+    if task_data.assigned_to == 0:
+        task_data.assigned_to = None
 
     # Создание задачи
     new_task = Task(
@@ -69,10 +70,6 @@ async def update_task(
 ) -> Optional[TaskResponse]:
     """
     Обновляет данные задачи, включая обновление вложенности.
-    :param db: Сессия базы данных.
-    :param task_id: ID задачи.
-    :param task_data: Новые данные для обновления задачи.
-    :return: Обновленная задача в формате Pydantic модели или None, если не найдена.
     """
     task = await db.get(Task, task_id)
     if not task:
@@ -113,34 +110,15 @@ async def update_task(
     return TaskResponse.model_validate(task)
 
 
-async def delete_task(db: AsyncSession, task_id: int) -> bool:
-    """
-    Удаляет задачу вместе с ее подзадачами (если заданы каскадные удаления).
-    :param db: Сессия базы данных.
-    :param task_id: ID задачи.
-    :return: True, если удаление успешно, иначе False.
-    """
-    task = await db.get(Task, task_id)
-    if not task:
-        return False
-
-    await db.delete(task)
-    await db.commit()
-    return True
-
-
 async def get_task_by_id(db: AsyncSession, task_id: int) -> Optional[TaskResponse]:
     """
     Извлекает задачу по ID вместе с родительской задачей и подзадачами.
-    :param db: Сессия базы данных.
-    :param task_id: ID задачи.
-    :return: Задача в формате Pydantic модели или None, если не найдена.
     """
     result = await db.execute(
         select(Task)
         .options(
             selectinload(Task.parent_task).load_only("id", "name", "status", "priority"),
-            selectinload(Task.subtasks).load_only("id", "name", "status", "priority")
+            selectinload(Task.subtasks).load_only("id", "name", "status", "priority"),
         )
         .where(Task.id == task_id)
     )
@@ -155,16 +133,13 @@ async def get_task_with_reminders(
 ) -> Optional[TaskWithReminders]:
     """
     Извлекает задачу с ее напоминаниями, родительской задачей и подзадачами.
-    :param db: Сессия базы данных.
-    :param task_id: ID задачи.
-    :return: Задача с напоминаниями в формате Pydantic модели или None, если не найдена.
     """
     result = await db.execute(
         select(Task)
         .options(
             selectinload(Task.reminders),
             selectinload(Task.parent_task).load_only("id", "name", "status", "priority"),
-            selectinload(Task.subtasks).load_only("id", "name", "status", "priority")
+            selectinload(Task.subtasks).load_only("id", "name", "status", "priority"),
         )
         .where(Task.id == task_id)
     )
@@ -179,15 +154,12 @@ async def get_tasks_for_project(
 ) -> List[TaskResponse]:
     """
     Извлекает все задачи для проекта вместе с вложенностью.
-    :param db: Сессия базы данных.
-    :param project_id: ID проекта.
-    :return: Список задач в формате Pydantic моделей.
     """
     result = await db.execute(
         select(Task)
         .options(
             selectinload(Task.parent_task).load_only("id", "name", "status", "priority"),
-            selectinload(Task.subtasks).load_only("id", "name", "status", "priority")
+            selectinload(Task.subtasks).load_only("id", "name", "status", "priority"),
         )
         .where(Task.project_id == project_id)
     )
@@ -197,52 +169,39 @@ async def get_tasks_for_project(
 
 async def get_user_tasks_by_date(
     db: AsyncSession, user_id: int, target_date: date
-) -> List[dict]:
+) -> List[TaskResponse]:
     """
-    Извлекает все задачи пользователя на указанную дату с указанием проектов и рабочих пространств.
-    :param db: Сессия базы данных.
-    :param user_id: ID пользователя.
-    :param target_date: Дата, для которой извлекаются задачи.
-    :return: Список задач в виде словарей.
+    Извлекает все задачи пользователя на указанную дату.
     """
-    # Запрос задач пользователя на указанную дату
-    tasks_query = (
-        select(
-            Task.id,
-            Task.name,
-            Task.due_date,
-            Task.is_completed,
-            Task.created_at,
-            Task.updated_at,
-            Project.name.label("project_name"),
-            Workspace.name.label("workspace_name"),
+    result = await db.execute(
+        select(Task)
+        .options(
+            selectinload(Task.project).options(selectinload(Project.workspace)),
         )
-        .join(Project, Task.project_id == Project.id)
-        .join(Workspace, Project.workspace_id == Workspace.id)
         .where(
-            Task.assigned_to == user_id,  # Условие: задачи, назначенные пользователю
-            Task.due_date == target_date,  # Условие: задачи на указанную дату
+            Task.assigned_to == user_id,
+            Task.due_date == target_date,
         )
-        .order_by(Task.due_date, Task.id)  # Сортировка
+        .order_by(Task.due_date, Task.id)
     )
+    tasks = result.scalars().all()
+    return [TaskResponse.model_validate(task) for task in tasks]
 
-    # Выполнение запроса
-    result = await db.execute(tasks_query)
-    rows = result.fetchall()
 
-    # Преобразование данных в список словарей
-    tasks = [
-        {
-            "id": row.id,
-            "name": row.name,
-            "project": row.project_name,
-            "workspace": row.workspace_name,
-            "due_date": row.due_date.isoformat() if row.due_date else None,
-            "is_completed": row.is_completed,
-            "created_at": row.created_at.isoformat(),
-            "updated_at": row.updated_at.isoformat(),
-        }
-        for row in rows
-    ]
+async def delete_task(db: AsyncSession, task_id: int) -> bool:
+    """
+    Удаляет задачу по её ID.
 
-    return tasks
+    :param db: Сессия базы данных.
+    :param task_id: ID задачи для удаления.
+    :return: True, если задача успешно удалена, иначе False.
+    """
+    # Получаем задачу из базы данных
+    task = await db.get(Task, task_id)
+    if not task:
+        return False
+
+    # Удаляем задачу
+    await db.delete(task)
+    await db.commit()
+    return True
