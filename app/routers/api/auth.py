@@ -223,3 +223,7 @@ async def telegram_auth(
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+    
+@router.get("/telegram", summary="Проверка подписи Telegram")
+async def get_endpoint_for_telegram():
+    return {"message": "This endpoint is used for Telegram login widget."}
