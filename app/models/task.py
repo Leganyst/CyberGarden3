@@ -3,6 +3,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP
 from datetime import datetime
 
+from app.core.database import Base
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, Boolean, Date
+from datetime import datetime, date
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -14,6 +20,14 @@ class Task(Base):
     created_by: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, comment="ID пользователя, создавшего задачу"
     )
+    assigned_to: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="ID пользователя, которому назначена задача"
+    )
+    due_date: Mapped[date] = mapped_column(Date, nullable=True, comment="Срок выполнения задачи")
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="Флаг выполнения задачи")
+    priority: Mapped[str] = mapped_column(
+        String(50), default="normal", nullable=False, comment="Приоритет задачи (low, normal, high)"
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=datetime.now, nullable=False, comment="Дата создания записи"
     )
@@ -22,5 +36,12 @@ class Task(Base):
     )
 
     project: Mapped["Project"] = relationship("Project", back_populates="tasks", lazy="joined")
-    creator: Mapped["User"] = relationship("User", back_populates="created_tasks", lazy="joined")
+    # Связи
+    creator: Mapped["User"] = relationship(
+        "User",
+        back_populates="created_tasks",
+        lazy="joined",
+        foreign_keys="[Task.created_by]",  # Явно указываем внешний ключ
+    )
     reminders: Mapped[list["Reminder"]] = relationship("Reminder", back_populates="task", lazy="selectin")
+    assigned: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], lazy="joined")

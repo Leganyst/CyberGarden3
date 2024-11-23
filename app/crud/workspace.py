@@ -1,9 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from typing import Optional
+from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse
+from app.models.workspace_user import WorkspaceUser
 
 
 async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate) -> WorkspaceResponse:
@@ -20,7 +22,21 @@ async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate) ->
     db.add(new_workspace)
     await db.commit()
     await db.refresh(new_workspace)
-    return WorkspaceResponse.model_validate(new_workspace)
+    
+    owner_workspace = WorkspaceUser(
+        user_id=workspace_data.created_by,
+        workspace_id=new_workspace.id,
+        access_level="admin"
+    )
+    db.add(owner_workspace)
+    await db.commit()
+    
+    result_data = {
+        "workspace_name": workspace_data.name,
+        "owner_id": workspace_data.created_by
+    }
+    
+    return result_data
 
 
 async def update_workspace(
@@ -63,15 +79,26 @@ async def delete_workspace(db: AsyncSession, workspace_id: int) -> bool:
     return True
 
 
-async def get_workspace_by_id(db: AsyncSession, workspace_id: int) -> Optional[WorkspaceResponse]:
+async def get_workspace_by_id(db: AsyncSession, workspace_id: int, user: User) -> Optional[WorkspaceResponse]:
     """
     Извлекает рабочее пространство по ID.
     :param db: Сессия базы данных.
     :param workspace_id: ID рабочего пространства.
     :return: Рабочее пространство в формате Pydantic модели или None, если не найдено.
     """
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id).where(Workspace.created_by == User.id))
+    workspace = result.scalar_one_or_none()  
     if workspace:
         return WorkspaceResponse.model_validate(workspace)
     return None
+
+
+async def get_workspaces_user(db: AsyncSession, user: User):
+    """
+    Получаем все воркспейсы юзера
+    :param db: Сессия базы данных
+    :param user: Объект пользователя из БД 
+    """
+    result = await db.execute(select(Workspace).where(Workspace.created_by == user.id))
+    workspaces = result.scalars().all()
+    return [WorkspaceResponse.model_validate(w) for w in workspaces]

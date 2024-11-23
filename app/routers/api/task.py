@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -9,6 +10,7 @@ from app.crud.task import (
     delete_task,
     get_task_by_id,
     get_tasks_for_project,
+    get_user_tasks_by_date
 )
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.routers.dependencies.permissions import (
@@ -124,3 +126,15 @@ async def delete_task_endpoint(
 
     await delete_task(db, task_id)
     return {"message": "Task deleted successfully"}
+
+
+@router.get("/user/today", status_code=status.HTTP_200_OK)
+async def get_user_tasks_today(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получение задач пользователя на сегодня.
+    """
+    tasks = await get_user_tasks_by_date(db, current_user.id, target_date=datetime.date.today())
+    return tasks

@@ -1,11 +1,13 @@
 from fastapi import HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models.user import User
 from app.crud.workspace import get_workspace_by_id
 from app.core.database import get_db
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.crud.project import get_workspace_id_by_project_id
 from app.crud.workspace_user import get_users_in_workspace
+from app.models.workspace_user import WorkspaceUser
 
 
 async def check_workspace_owner(
@@ -14,37 +16,50 @@ async def check_workspace_owner(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Проверяет, является ли текущий пользователь владельцем рабочего пространства.
-    Если проверка успешна, возвращает объект рабочего пространства.
-    Иначе вызывает исключение HTTP 403 (доступ запрещен).
-    
-    :param workspace_id: ID рабочего пространства.
-    :param current_user: Объект текущего авторизованного пользователя.
-    :param db: Сессия базы данных.
-    :return: Объект рабочего пространства.
+    Проверяет, является ли текущий пользователь владельцем рабочего пространства (admin).
     """
-    workspace = await get_workspace_by_id(db, workspace_id)
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+    # Проверяем, есть ли запись о доступе пользователя к рабочему пространству
+    result = await db.execute(
+        select(WorkspaceUser)
+        .where(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == current_user.id,
+            WorkspaceUser.access_level == "admin",  # Проверяем, что пользователь — admin
+        )
+    )
+    workspace_user = result.scalar_one_or_none()
 
-    if workspace.created_by != current_user.id:
+    if not workspace_user:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    return workspace
+    return workspace_user.workspace
+
 
 async def check_workspace_access(
     workspace_id: int,
     current_user: User,
     db: AsyncSession,
+    roles: list[str] = None,
 ) -> bool:
     """
-    Проверяет, имеет ли пользователь доступ к рабочему пространству как создатель, редактор или читатель.
+    Проверяет, имеет ли пользователь доступ к рабочему пространству с определенными ролями.
+    :param workspace_id: ID рабочего пространства.
+    :param current_user: Объект текущего авторизованного пользователя.
+    :param db: Сессия базы данных.
+    :param roles: Список допустимых ролей (например, ["admin", "member"]).
+    :return: True, если доступ есть, иначе False.
     """
-    workspace_users = await get_users_in_workspace(db, workspace_id)
-    for workspace_user in workspace_users:
-        if workspace_user.user_id == current_user.id:
-            return True  # Доступ разрешен
-    return False  # Доступ запрещен
+    roles = roles or ["admin", "member", "viewer"]  # По умолчанию разрешаем все роли
+    result = await db.execute(
+        select(WorkspaceUser)
+        .where(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == current_user.id,
+            WorkspaceUser.access_level.in_(roles),
+        )
+    )
+    workspace_user = result.scalar_one_or_none()
+    return workspace_user is not None
 
 
 async def check_workspace_editor_or_owner(
@@ -54,5 +69,7 @@ async def check_workspace_editor_or_owner(
     Проверяет, является ли пользователь редактором или создателем рабочего пространства.
     """
     workspace_id = await get_workspace_id_by_project_id(db, project_id)
-    if not await check_workspace_access(workspace_id, current_user, db, roles=["editor", "owner"]):
+
+    # Проверяем доступ для ролей "admin" и "member" (можно адаптировать роли при необходимости)
+    if not await check_workspace_access(workspace_id, current_user, db, roles=["admin", "member"]):
         raise HTTPException(status_code=403, detail="Access denied")

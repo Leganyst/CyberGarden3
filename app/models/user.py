@@ -33,7 +33,9 @@ class User(Base):
         "Project", back_populates="creator", lazy="selectin"
     )
 
-    # Связь с созданными задачами
     created_tasks: Mapped[list["Task"]] = relationship(
-        "Task", back_populates="creator", lazy="selectin"
+        "Task",
+        back_populates="creator",
+        lazy="selectin",
+        foreign_keys="[Task.created_by]",  # Указываем, что использовать Task.created_by
     )

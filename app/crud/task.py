@@ -1,10 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import aliased
 from typing import Optional, List
 from app.models.task import Task
+from app.models.project import Project
+from app.models.workspace import Workspace
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
-
+from datetime import date
 
 async def create_task(db: AsyncSession, task_data: TaskCreate) -> TaskResponse:
     """
@@ -113,3 +116,56 @@ async def get_tasks_for_project(
     result = await db.execute(select(Task).where(Task.project_id == project_id))
     tasks = result.scalars().all()
     return [TaskResponse.model_validate(task) for task in tasks]
+
+
+async def get_user_tasks_by_date(
+    db: AsyncSession, user_id: int, target_date: date
+) -> List[dict]:
+    """
+    Извлекает все задачи пользователя на указанную дату с указанием проектов и рабочих пространств.
+    :param db: Сессия базы данных.
+    :param user_id: ID пользователя.
+    :param target_date: Дата, для которой извлекаются задачи.
+    :return: Список задач в виде словарей.
+    """
+    # Запрос задач пользователя на указанную дату
+    tasks_query = (
+        select(
+            Task.id,
+            Task.name,
+            Task.due_date,
+            Task.is_completed,
+            Task.created_at,
+            Task.updated_at,
+            Project.name.label("project_name"),
+            Workspace.name.label("workspace_name"),
+        )
+        .join(Project, Task.project_id == Project.id)
+        .join(Workspace, Project.workspace_id == Workspace.id)
+        .where(
+            Task.assigned_to == user_id,  # Условие: задачи, назначенные пользователю
+            Task.due_date == target_date,  # Условие: задачи на указанную дату
+        )
+        .order_by(Task.due_date, Task.id)  # Сортировка
+    )
+
+    # Выполнение запроса
+    result = await db.execute(tasks_query)
+    rows = result.fetchall()
+
+    # Преобразование данных в список словарей
+    tasks = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "project": row.project_name,
+            "workspace": row.workspace_name,
+            "due_date": row.due_date.isoformat(),
+            "is_completed": row.is_completed,
+            "created_at": row.created_at.isoformat(),
+            "updated_at": row.updated_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+    return tasks

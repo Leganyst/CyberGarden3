@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.core.database import get_db
+from app.models.workspace import Workspace
 from app.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceUpdate,
@@ -12,6 +13,7 @@ from app.crud.workspace import (
     update_workspace,
     delete_workspace,
     get_workspace_by_id,
+    get_workspaces_user
 )
 from app.crud.workspace_user import get_users_in_workspace
 from app.routers.dependencies.jwt_functions import get_current_user
@@ -20,8 +22,7 @@ from app.models.user import User
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 
-
-@router.post("/", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_workspace_endpoint(
     workspace_data: WorkspaceCreate,
     current_user: User = Depends(get_current_user),
@@ -32,8 +33,8 @@ async def create_workspace_endpoint(
     """
     workspace_data.created_by = current_user.id
     workspace = await create_workspace(db, workspace_data)
+    
     return workspace
-
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
 async def get_workspace_endpoint(
@@ -44,7 +45,7 @@ async def get_workspace_endpoint(
     """
     Получение информации о рабочем пространстве. Только для владельцев.
     """
-    workspace = await get_workspace_by_id(db, workspace_id)
+    workspace = await get_workspace_by_id(db, workspace_id, current_user)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
@@ -64,7 +65,7 @@ async def list_user_workspaces(
     Получение списка всех рабочих пространств текущего пользователя.
     """
     # Здесь предполагается, что CRUD-функция list_user_workspaces реализована.
-    user_workspaces = await get_users_in_workspace(db, current_user.id)
+    user_workspaces = await get_workspaces_user(db, current_user)
     return user_workspaces
 
 
@@ -78,7 +79,7 @@ async def update_workspace_endpoint(
     """
     Обновление рабочего пространства. Только для владельцев.
     """
-    workspace = await get_workspace_by_id(db, workspace_id)
+    workspace = await get_workspace_by_id(db, workspace_id, current_user)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
