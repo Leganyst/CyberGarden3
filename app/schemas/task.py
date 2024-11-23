@@ -17,9 +17,9 @@ class TaskCreate(TaskBase):
     Схема для создания новой задачи.
     """
     project_id: int = Field(..., description="ID проекта, к которому относится задача")
-    created_by: int = Field(..., description="ID пользователя, создавшего задачу")
     assigned_to: Optional[int] = Field(None, description="ID пользователя, которому назначена задача")
     reminder_time: Optional[datetime] = Field(None, description="Время напоминания для задачи (опционально)")
+    created_by: int | None = None
 
 
 

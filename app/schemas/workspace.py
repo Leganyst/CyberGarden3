@@ -14,8 +14,8 @@ class WorkspaceCreate(WorkspaceBase):
     """
     Схема для создания рабочего пространства.
     """
-    created_by: int | None = Field(default=None, description="ID пользователя, создавшего рабочее пространство")
-
+    created_by: int | None = None
+    pass
 
 class WorkspaceUpdate(BaseModel):
     """

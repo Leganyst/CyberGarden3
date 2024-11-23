@@ -68,6 +68,8 @@ async def register(
         user = await create_user(db, user_data)
     except IntegrityError:
         raise HTTPException(status_code=400, detail="User with this email already exists.")
+    except TypeError:
+        raise HTTPException(status_code=400, detail="Invalid data")
     
     # Создание токенов
     access_token = create_access_token({"sub": user.id})

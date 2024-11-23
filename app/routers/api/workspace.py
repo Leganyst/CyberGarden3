@@ -69,7 +69,7 @@ async def list_user_workspaces(
     return user_workspaces
 
 
-@router.patch("/{workspace_id}", response_model=WorkspaceResponse)
+@router.patch("/{workspace_id}")
 async def update_workspace_endpoint(
     workspace_id: int,
     workspace_data: WorkspaceUpdate,
@@ -87,3 +87,6 @@ async def update_workspace_endpoint(
     if workspace.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+
+    return {"workspace_id": workspace_id,
+            "name": workspace_data.name}

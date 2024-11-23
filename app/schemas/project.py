@@ -15,7 +15,7 @@ class ProjectCreate(ProjectBase):
     Схема для создания нового проекта.
     """
     workspace_id: int = Field(..., description="ID рабочего пространства, к которому привязан проект")
-    created_by: int = Field(..., description="ID пользователя, создавшего проект")
+    created_by: int | None = None
 
 
 class ProjectUpdate(BaseModel):
