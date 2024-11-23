@@ -8,9 +8,10 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="Уникальный идентификатор")
+    telegram_id: Mapped[str] = mapped_column(Text, nullable=True, comment="ID пользователя в Telegram")
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Имя пользователя")
     email: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, comment="Уникальная электронная почта")
-    password: Mapped[str] = mapped_column(Text, nullable=False, comment="Зашифрованный пароль")
+    password: Mapped[str] = mapped_column(Text, nullable=True, comment="Зашифрованный пароль")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=datetime.now, nullable=False, comment="Дата создания записи"
     )
