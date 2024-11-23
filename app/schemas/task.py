@@ -2,23 +2,23 @@ from pydantic import BaseModel, Field
 from datetime import datetime, date
 from typing import Optional, List
 from app.schemas.reminder import ReminderResponse
+from app.models.task import TaskStatus, TaskPriority
 
 class TaskBase(BaseModel):
     """
     Базовая схема задачи.
     """
-    name: str = Field(..., max_length=150, description="Название задачи")
+    name: str = Field(..., max_length=255, description="Название задачи")
     due_date: Optional[date] = Field(None, description="Дата выполнения задачи")
     description: Optional[str] = Field(
         None, max_length=500, description="Описание задачи"
     )
-    status: Optional[str] = Field(
-        None, description="Статус задачи (Открыто / В работе / Проверка / Готово)"
+    status: TaskStatus = Field(
+        TaskStatus.OPEN, description="Статус задачи"
     )
-    priority: Optional[str] = Field(
-        None, description="Приоритет задачи (None, low, normal, high)"
+    priority: TaskPriority = Field(
+        TaskPriority.NONE, description="Приоритет задачи"
     )
-
 
 class TaskCreate(TaskBase):
     """
@@ -36,29 +36,26 @@ class TaskCreate(TaskBase):
     reminder_time: Optional[datetime] = Field(
         None, description="Время напоминания для задачи (опционально)"
     )
-    created_by: Optional[int] = Field(
-        None, description="ID пользователя, создавшего задачу"
-    )
-
+    # Поле created_by не нужно, так как оно заполняется автоматически
 
 class TaskUpdate(BaseModel):
     """
     Схема для обновления данных задачи.
     """
     name: Optional[str] = Field(
-        None, max_length=150, description="Новое название задачи"
+        None, max_length=255, description="Новое название задачи"
     )
     description: Optional[str] = Field(
         None, max_length=500, description="Новое описание задачи"
     )
-    status: Optional[str] = Field(
-        None, description="Новый статус задачи (Открыто / В работе / Проверка / Готово)"
+    status: Optional[TaskStatus] = Field(
+        None, description="Новый статус задачи"
     )
     due_date: Optional[date] = Field(
         None, description="Новая дата выполнения задачи"
     )
-    priority: Optional[str] = Field(
-        None, description="Новый приоритет задачи (None, low, normal, high)"
+    priority: Optional[TaskPriority] = Field(
+        None, description="Новый приоритет задачи"
     )
     is_completed: Optional[bool] = Field(
         None, description="Флаг выполнения задачи"
@@ -70,6 +67,21 @@ class TaskUpdate(BaseModel):
         None, description="ID новой родительской задачи (для изменения вложенности)"
     )
 
+class TaskNested(BaseModel):
+    """
+    Упрощенная схема задачи для вложенных задач.
+    """
+    id: int = Field(..., description="Уникальный идентификатор задачи")
+    name: str = Field(..., max_length=255, description="Название задачи")
+    status: TaskStatus = Field(
+        ..., description="Статус задачи"
+    )
+    priority: TaskPriority = Field(
+        ..., description="Приоритет задачи"
+    )
+
+    class Config:
+        from_attributes = True
 
 class TaskResponse(TaskBase):
     """
@@ -85,21 +97,27 @@ class TaskResponse(TaskBase):
     assigned_to: Optional[int] = Field(
         None, description="ID пользователя, которому назначена задача"
     )
-    parent_task_id: Optional[int] = Field(
-        None, description="ID родительской задачи (если задача вложенная)"
-    )
     is_completed: bool = Field(..., description="Флаг выполнения задачи")
     created_at: datetime = Field(..., description="Дата создания задачи")
     updated_at: datetime = Field(..., description="Дата последнего обновления задачи")
+    parent_task: Optional[TaskNested] = Field(
+        None, description="Информация о родительской задаче"
+    )
+    subtasks: Optional[List[TaskNested]] = Field(
+        default_factory=list, description="Список подзадач"
+    )
 
     class Config:
         from_attributes = True
-
 
 class TaskWithReminders(TaskResponse):
     """
     Схема для ответа с данными задачи и связанных напоминаний.
     """
     reminders: List[ReminderResponse] = Field(
-        ..., description="Список напоминаний, связанных с задачей"
+        default_factory=list, description="Список напоминаний, связанных с задачей"
     )
+
+# Обновляем ссылки для самореферентных моделей
+TaskResponse.model_rebuild()
+TaskWithReminders.model_rebuild()
