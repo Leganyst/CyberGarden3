@@ -23,5 +23,5 @@ class WorkspaceUser(Base):
         TIMESTAMP(timezone=True), default=datetime.now, onupdate=datetime.now, nullable=False, comment="Дата последнего изменения записи"
     )
 
-    workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="users", lazy="joined")
-    user: Mapped["User"] = relationship("User", back_populates="workspaces", lazy="joined")
+    workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="users", lazy="noload")
+    user: Mapped["User"] = relationship("User", back_populates="workspaces", lazy="noload")
