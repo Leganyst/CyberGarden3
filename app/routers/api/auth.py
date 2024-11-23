@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from app.schemas.user import UserCreate, UserResponse
+from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.routers.dependencies.jwt_functions import (
     create_access_token,
     create_refresh_token,
@@ -86,8 +86,7 @@ async def register(
 
 @router.post("/login", summary="Авторизация пользователя")
 async def login(
-    email: str,
-    password: str,
+    user_data: UserLogin,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -95,8 +94,8 @@ async def login(
     
     Проверяет учетные данные пользователя и выдает JWT-токены.
     """
-    user = await get_user_by_email(db, email)
-    if not user or not verify_password(password, user.password):
+    user = await get_user_by_email(db, user_data.get("email"))
+    if not user or not verify_password(user_data.get("password"), user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     access_token = create_access_token({"sub": user.id})
