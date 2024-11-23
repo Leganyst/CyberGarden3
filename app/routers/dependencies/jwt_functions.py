@@ -10,7 +10,7 @@ from app.crud.user import get_user_by_id
 from app.core.config import settings
 
 # Конфигурация токенов
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
+ACCESS_TOKEN_EXPIRE_MINUTES = 50
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 JWT_ALGORITHM = "HS256"
 JWT_SECRET_KEY = settings.jwt_secret_key

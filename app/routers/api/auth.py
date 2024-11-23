@@ -44,7 +44,7 @@ router = APIRouter(
         400: {
             "description": "Пользователь с таким email уже существует",
             "content": {
-                "application/json": {
+                "application/json": { 
                     "example": {
                         "detail": "User with this email already exists."
                     }
