@@ -9,6 +9,8 @@ class TaskBase(BaseModel):
     """
     name: str = Field(..., max_length=150, description="Название задачи")
     due_date: Optional[date] = Field(None, description="Дата выполнения задачи")
+    description: Optional[str] = Field(None, max_length=500, description="Описание задачи")
+    status: Optional[str] = Field(None, description="Статус задачи (Открыто / В работе / Проверка / Готово)")
     priority: Optional[str] = Field(None, description="Приоритет задачи (None, low, normal, high)")
 
 
@@ -28,8 +30,10 @@ class TaskUpdate(BaseModel):
     Схема для обновления данных задачи.
     """
     name: Optional[str] = Field(None, max_length=150, description="Новое название задачи")
+    description: Optional[str] = Field(None, max_length=500, description="Новое описание задачи")
+    status: Optional[str] = Field(None, description="Новый статус задачи (Открыто / В работе / Проверка / Готово)")
     due_date: Optional[date] = Field(None, description="Новая дата выполнения задачи")
-    priority: Optional[str] = Field(None, description="Новый приоритет задачи (low, normal, high)")
+    priority: Optional[str] = Field(None, description="Новый приоритет задачи (None, low, normal, high)")
     is_completed: Optional[bool] = Field(None, description="Флаг выполнения задачи")
     assigned_to: Optional[int] = Field(None, description="Обновление исполнителя задачи")
 

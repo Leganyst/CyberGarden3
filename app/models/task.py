@@ -1,6 +1,6 @@
 from app.core.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP
+from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, desc
 from datetime import datetime
 
 from app.core.database import Base
@@ -14,6 +14,8 @@ class Task(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="Уникальный идентификатор")
     name: Mapped[str] = mapped_column(String(150), nullable=False, comment="Название задачи")
+    description: Mapped[str] = mapped_column(String(500), nullable=True, comment="Описание задачи")
+    status: Mapped[str] = mapped_column(String(50), default="active", nullable=False, comment="Статус задачи (Открыто / В работе / Проверка / Готово)")
     project_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, comment="ID проекта"
     )
