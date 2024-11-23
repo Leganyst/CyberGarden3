@@ -36,7 +36,6 @@ class TaskCreate(TaskBase):
     reminder_time: Optional[datetime] = Field(
         None, description="Время напоминания для задачи (опционально)"
     )
-    # Поле created_by не нужно, так как оно заполняется автоматически
 
 class TaskUpdate(BaseModel):
     """
@@ -67,22 +66,6 @@ class TaskUpdate(BaseModel):
         None, description="ID новой родительской задачи (для изменения вложенности)"
     )
 
-class TaskNested(BaseModel):
-    """
-    Упрощенная схема задачи для вложенных задач.
-    """
-    id: int = Field(..., description="Уникальный идентификатор задачи")
-    name: str = Field(..., max_length=255, description="Название задачи")
-    status: TaskStatus = Field(
-        ..., description="Статус задачи"
-    )
-    priority: TaskPriority = Field(
-        ..., description="Приоритет задачи"
-    )
-
-    class Config:
-        from_attributes = True
-
 class TaskResponse(TaskBase):
     """
     Схема для ответа с данными задачи.
@@ -100,15 +83,9 @@ class TaskResponse(TaskBase):
     is_completed: bool = Field(..., description="Флаг выполнения задачи")
     created_at: datetime = Field(..., description="Дата создания задачи")
     updated_at: datetime = Field(..., description="Дата последнего обновления задачи")
-    parent_task: Optional[TaskNested] = Field(
-        None, description="Информация о родительской задаче"
-    )
-    subtasks: Optional[List[TaskNested]] = Field(
-        default_factory=list, description="Список подзадач"
-    )
-
+    parent_task: Optional[int] = Field(None, description="ID родительской задачи")
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class TaskWithReminders(TaskResponse):
     """
@@ -117,7 +94,3 @@ class TaskWithReminders(TaskResponse):
     reminders: List[ReminderResponse] = Field(
         default_factory=list, description="Список напоминаний, связанных с задачей"
     )
-
-# Обновляем ссылки для самореферентных моделей
-TaskResponse.model_rebuild()
-TaskWithReminders.model_rebuild()
