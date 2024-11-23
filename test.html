@@ -3,17 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Login Test</title>
+    <title>Telegram Login Widget Test</title>
 </head>
 <body>
-    <h1 style="text-align: center;">Telegram Login Test Page</h1>
-    <p style="text-align: center;">Нажмите кнопку ниже, чтобы авторизоваться через Telegram:</p>
-    <div style="text-align: center;">
-        <script async src="https://telegram.org/js/telegram-widget.js?22"
-                data-telegram-login="bigas_notification_bot"
-                data-size="large"
-                data-auth-url="https://cybergarden.leganyst.ru/auth/telegram"
-                data-request-access="write"></script>
-    </div>
+    <h1 style="text-align: center;">Тест Telegram Login Widget</h1>
+    <p style="text-align: center;">Если всё настроено правильно, ниже должна появиться кнопка авторизации через Telegram:</p>
+    <div id="telegram-button" style="text-align: center;"></div>
+
+    <script>
+        // URL вашей ручки на сервере
+        const widgetEndpoint = "https://cybergarden.leganyst.ru/telegram/widget";
+
+        // Запрашиваем HTML-код виджета
+        fetch(widgetEndpoint)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Ошибка загрузки виджета: ${response.statusText}`);
+                }
+                return response.text();
+            })
+            .then(widgetHtml => {
+                // Вставляем HTML-код в контейнер
+                document.getElementById("telegram-button").innerHTML = widgetHtml;
+            })
+            .catch(error => {
+                console.error("Ошибка при загрузке Telegram Widget:", error);
+                document.getElementById("telegram-button").innerHTML = "<p style='color: red;'>Ошибка загрузки виджета</p>";
+            });
+    </script>
 </body>
 </html>
