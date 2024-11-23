@@ -8,23 +8,56 @@ from app.models.project import Project
 from app.models.workspace import Workspace
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
 from datetime import date
+from app.models.reminder import Reminder
 
 async def create_task(db: AsyncSession, task_data: TaskCreate) -> TaskResponse:
     """
-    Создает новую задачу.
+    Создает новую задачу с опциональным напоминанием.
     :param db: Сессия базы данных.
     :param task_data: Данные для создания задачи.
     :return: Созданная задача в формате Pydantic модели.
     """
+    # Создание задачи
     new_task = Task(
         name=task_data.name,
         project_id=task_data.project_id,
         created_by=task_data.created_by,
+        assigned_to=task_data.assigned_to,
+        due_date=task_data.due_date,
+        priority=task_data.priority,
     )
     db.add(new_task)
+    await db.flush()  # Генерируем ID задачи без фиксации транзакции
+
+    # Создание напоминания, если указано время
+    if task_data.reminder_time:
+        reminder = Reminder(
+            task_id=new_task.id,
+            reminder_time=task_data.reminder_time,
+        )
+        db.add(reminder)
+
+    # Фиксируем изменения
     await db.commit()
+
+    # Подгружаем данные задачи вместе с напоминаниями
     await db.refresh(new_task)
-    return TaskResponse.model_validate(new_task)
+
+    # Преобразуем данные в формат Pydantic
+    task_response = TaskResponse(
+        id=new_task.id,
+        name=new_task.name,
+        project_id=new_task.project_id,
+        created_by=new_task.created_by,
+        assigned_to=new_task.assigned_to,
+        is_completed=new_task.is_completed,
+        due_date=new_task.due_date,
+        priority=new_task.priority,
+        created_at=new_task.created_at,
+        updated_at=new_task.updated_at,
+    )
+
+    return task_response
 
 
 async def update_task(
