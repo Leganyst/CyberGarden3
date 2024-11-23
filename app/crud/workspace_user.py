@@ -3,57 +3,83 @@ from sqlalchemy.future import select
 from typing import Optional, List
 from app.models.workspace_user import WorkspaceUser
 from app.schemas.workspace_user import WorkspaceUserCreate, WorkspaceUserUpdate, WorkspaceUserResponse
+from sqlalchemy.exc import IntegrityError
 
-
-async def create_workspace_user(db: AsyncSession, workspace_user_data: WorkspaceUserCreate) -> WorkspaceUserResponse:
+async def create_workspace_user(db: AsyncSession, workspace_id: int, user_id: int, access_level: str) -> WorkspaceUser:
     """
-    Создает запись связи пользователя и рабочего пространства.
-    :param db: Сессия базы данных.
-    :param workspace_user_data: Данные для создания связи.
-    :return: Созданная запись в формате Pydantic модели.
+    Создаёт запись в таблице WorkspaceUser.
     """
     new_workspace_user = WorkspaceUser(
-        workspace_id=workspace_user_data.workspace_id,
-        user_id=workspace_user_data.user_id,
-        access_level=workspace_user_data.access_level,
+        workspace_id=workspace_id,
+        user_id=user_id,
+        access_level=access_level,
     )
     db.add(new_workspace_user)
-    await db.commit()
-    await db.refresh(new_workspace_user)
-    return WorkspaceUserResponse.model_validate(new_workspace_user)
+    try:
+        await db.commit()
+        await db.refresh(new_workspace_user)
+    except IntegrityError:
+        await db.rollback()
+        raise ValueError("User is already added to this workspace or invalid data.")
+    return new_workspace_user
 
 
-async def update_workspace_user(
-    db: AsyncSession, workspace_user_id: int, workspace_user_data: WorkspaceUserUpdate
-) -> Optional[WorkspaceUserResponse]:
+async def is_workspace_admin(db: AsyncSession, workspace_id: int, user_id: int) -> bool:
     """
-    Обновляет данные связи пользователя и рабочего пространства.
+    Проверяет, является ли пользователь администратором рабочего пространства.
+    """
+    result = await db.execute(
+        select(WorkspaceUser)
+        .where(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == user_id,
+            WorkspaceUser.access_level == "admin",
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+async def update_workspace_user_role(
+    db: AsyncSession, workspace_id: int, user_id: int, new_role: str
+) -> WorkspaceUserResponse:
+    """
+    Обновляет уровень доступа пользователя в рабочем пространстве.
     :param db: Сессия базы данных.
-    :param workspace_user_id: ID записи связи.
-    :param workspace_user_data: Новые данные для обновления.
-    :return: Обновленная запись в формате Pydantic модели или None, если не найдена.
+    :param workspace_id: ID рабочего пространства.
+    :param user_id: ID пользователя, чья роль обновляется.
+    :param new_role: Новый уровень доступа.
+    :return: Обновлённая связь пользователя и рабочего пространства.
     """
-    result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.id == workspace_user_id))
+    result = await db.execute(
+        select(WorkspaceUser).where(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == user_id,
+        )
+    )
     workspace_user = result.scalar_one_or_none()
     if not workspace_user:
-        return None
+        raise ValueError("User not found in the workspace.")
 
-    if workspace_user_data.access_level is not None:
-        workspace_user.access_level = workspace_user_data.access_level
-
+    # Обновляем роль
+    workspace_user.access_level = new_role
     await db.commit()
     await db.refresh(workspace_user)
+
     return WorkspaceUserResponse.model_validate(workspace_user)
 
-
-async def delete_workspace_user(db: AsyncSession, workspace_user_id: int) -> bool:
+async def remove_user_from_workspace(db: AsyncSession, workspace_id: int, user_id: int) -> bool:
     """
-    Удаляет запись связи пользователя и рабочего пространства.
+    Удаляет пользователя из рабочего пространства.
     :param db: Сессия базы данных.
-    :param workspace_user_id: ID записи связи.
+    :param workspace_id: ID рабочего пространства.
+    :param user_id: ID пользователя.
     :return: True, если удаление успешно, иначе False.
     """
-    result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.id == workspace_user_id))
+    result = await db.execute(
+        select(WorkspaceUser).where(
+            WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.user_id == user_id,
+        )
+    )
     workspace_user = result.scalar_one_or_none()
     if not workspace_user:
         return False
