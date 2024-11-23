@@ -62,10 +62,10 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> UserResponse:
     """
     hashed_password = hash_password(user_data.password)
     new_user = User(
-        name=user_data["name"],
-        email=user_data.get("email"),
-        telegram_id=hashed_password if not user_data.get("telegram_id") else None,
-        password=user_data.get("password", None),  # Может быть None для Telegram
+        name=user_data.name,
+        email=user_data.email,
+        telegram_id=None,
+        password=hashed_password,  # Может быть None для Telegram
     )
     try:
         db.add(new_user)
