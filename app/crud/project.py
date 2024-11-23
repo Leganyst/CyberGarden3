@@ -131,7 +131,20 @@ async def get_tasks_for_project(db: AsyncSession, project_id: int) -> List[TaskR
     tasks = result.scalars().all()
 
     # Конвертируем задачи в Pydantic модели
-    return [TaskResponse.model_validate(task) for task in tasks]
+    return [TaskResponse(
+        name=task.name,
+        id=task.id,
+        due_date=task.due_date,
+        description=task.description,
+        status=task.status,
+        priority=task.priority,
+        project_id=task.project_id,
+        created_at=task.created_at,
+        assigned_to=task.assigned_to,
+        is_completed=task.is_completed,
+        updated_at=task.updated_at,
+        parent_task=task.parent_task_id,
+        created_by=task.created_by,) for task in tasks]
 
 
 async def get_workspace_id_by_project_id(db: AsyncSession, project_id: int) -> int:
