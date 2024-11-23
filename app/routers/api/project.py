@@ -53,7 +53,7 @@ async def get_project_endpoint(
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
     # Здесь предполагается функция check_project_access для редакторов/читателей
-    if not await check_project_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
+    if not await check_project_access(workspace_id, current_user, db):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return project
@@ -115,7 +115,7 @@ async def get_project_tasks_endpoint(
 
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
-    if not await check_project_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
+    if not await check_project_access(workspace_id, current_user, db):
         raise HTTPException(status_code=403, detail="Access denied")
 
     tasks = await get_tasks_for_project(db, project_id)
