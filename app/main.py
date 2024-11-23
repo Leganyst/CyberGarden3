@@ -12,8 +12,9 @@ from app.routers.api.project import router as project_router
 from app.routers.api.task import router as task_router
 from app.routers.api.user import router as user_router
 from app.routers.api.comments import router as comments_router
-from app.routers.api.widget import router as widget_router
-
+# from app.routers.api.widget import router as widget_router
+from app.routers.api.load_test_data import router as load_test_data_router
+from app.routers.api.workspace_user import router as workspace_user_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,4 +50,6 @@ app.include_router(project_router)
 app.include_router(task_router)
 app.include_router(user_router)
 app.include_router(comments_router)
-app.include_router(widget_router)
+# app.include_router(widget_router)
+app.include_router(load_test_data_router)
+app.include_router(workspace_user_router)

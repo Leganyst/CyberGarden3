@@ -7,7 +7,9 @@ class Settings(BaseSettings):
     postgres_password: str
     postgres_db: str
     telegram_bot_token: str
-    jwt_secret_key: str = secrets.token_urlsafe(32)  # Генерация уникального ключа
+    # jwt_secret_key: str = secrets.token_urlsafe(32)  # Генерация уникального ключа
+    jwt_secret_key: str = "4932890vjcx7123ijvsod2q1kru84324f"  # Генерация уникального ключа
+
 
     class Config:
         env_file = ".env"

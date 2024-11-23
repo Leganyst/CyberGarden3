@@ -75,7 +75,6 @@ async def get_current_user(
 
     try:
         token = token.credentials
-        token = token.split(" ")[1]
     except IndexError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
