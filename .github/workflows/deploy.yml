@@ -22,7 +22,7 @@ jobs:
         echo "$SSH_KEY" > ssh_key
         chmod 600 ssh_key
         ssh -o StrictHostKeyChecking=no -i ssh_key $SSH_USERNAME@$SSH_HOST << 'EOF'
-          cd ~/Form/
+          cd ~/CyberGarden3/
           git pull origin main  # Получаем последние изменения из репозитория
           docker-compose down # Останавливаем контейнеры
           docker image prune -f # Удаляем старые образы
