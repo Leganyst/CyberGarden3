@@ -8,8 +8,9 @@ from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, P
 from app.models.task import Task
 from app.schemas.task import TaskResponse
 from fastapi import HTTPException
+from app.models.project_user import ProjectUser
 
-async def create_project(db: AsyncSession, project_data: ProjectCreate) -> ProjectResponse:
+async def create_project(db: AsyncSession, project_data: ProjectCreate) -> bool:
     """
     Создает новый проект.
     :param db: Сессия базы данных.
@@ -24,8 +25,17 @@ async def create_project(db: AsyncSession, project_data: ProjectCreate) -> Proje
     db.add(new_project)
     await db.commit()
     await db.refresh(new_project)
-    return ProjectResponse.model_validate(new_project)
 
+    # Добавляем создателя проекта как администратора
+    project_admin = ProjectUser(
+        project_id=new_project.id,
+        user_id=project_data.created_by,
+        access_level="admin",
+    )
+    db.add(project_admin)
+    await db.commit()
+
+    return True
 
 async def update_project(
     db: AsyncSession, project_id: int, project_data: ProjectUpdate

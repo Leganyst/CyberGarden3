@@ -12,14 +12,14 @@ from app.crud.project import (
     get_all_projects
 )
 from app.routers.dependencies.jwt_functions import get_current_user
-from app.routers.dependencies.permissions import check_workspace_owner, check_workspace_access
+from app.routers.dependencies.permissions import check_workspace_owner, check_project_access
 from app.models.user import User
 from app.schemas.task import TaskResponse
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_project_endpoint(
     project_data: ProjectCreate,
     current_user: User = Depends(get_current_user),
@@ -33,7 +33,8 @@ async def create_project_endpoint(
 
     project_data.created_by = current_user.id
     project = await create_project(db, project_data)
-    return project
+    return {"owner_id": current_user.id,
+            "name": project_data.name}
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -51,8 +52,8 @@ async def get_project_endpoint(
 
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
-    # Здесь предполагается функция check_workspace_access для редакторов/читателей
-    if not await check_workspace_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
+    # Здесь предполагается функция check_project_access для редакторов/читателей
+    if not await check_project_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return project
@@ -114,7 +115,7 @@ async def get_project_tasks_endpoint(
 
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
-    if not await check_workspace_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
+    if not await check_project_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
         raise HTTPException(status_code=403, detail="Access denied")
 
     tasks = await get_tasks_for_project(db, project_id)

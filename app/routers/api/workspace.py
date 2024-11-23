@@ -15,7 +15,6 @@ from app.crud.workspace import (
     get_workspace_by_id,
     get_workspaces_user
 )
-from app.crud.workspace_user import get_users_in_workspace
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.routers.dependencies.permissions import check_workspace_owner
 from app.models.user import User

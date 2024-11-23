@@ -6,7 +6,7 @@ from app.models.task import Task
 from app.models.user import User
 from app.core.database import get_db
 from app.routers.dependencies.jwt_functions import get_current_user
-from app.routers.dependencies.permissions import check_workspace_access
+from app.routers.dependencies.permissions import check_project_access
 from app.crud.task import get_task_by_id
 
 router = APIRouter(
@@ -27,7 +27,7 @@ async def create_comment(
     task = await get_task_by_id(db, comment_data.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    if not await check_workspace_access(task.project.workspace_id, current_user, db):
+    if not await check_project_access(task.project.workspace_id, current_user, db):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Создаём комментарий

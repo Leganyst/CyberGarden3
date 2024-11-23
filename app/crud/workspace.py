@@ -5,7 +5,7 @@ from typing import Optional
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse
-from app.models.workspace_user import WorkspaceUser
+from app.models.project_user import ProjectUser
 
 
 async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate) -> WorkspaceResponse:
@@ -22,21 +22,7 @@ async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate) ->
     db.add(new_workspace)
     await db.commit()
     await db.refresh(new_workspace)
-    
-    owner_workspace = WorkspaceUser(
-        user_id=workspace_data.created_by,
-        workspace_id=new_workspace.id,
-        access_level="admin"
-    )
-    db.add(owner_workspace)
-    await db.commit()
-    
-    result_data = {
-        "workspace_name": workspace_data.name,
-        "owner_id": workspace_data.created_by
-    }
-    
-    return result_data
+    return WorkspaceResponse.model_validate(new_workspace)
 
 
 async def update_workspace(
@@ -106,10 +92,16 @@ async def get_workspaces_user(db: AsyncSession, user: User):
 
 async def get_user_workspaces(db: AsyncSession, user: User):
     """
-    Получаем все воркспейсы юзера
+    Получаем все воркспейсы, где пользователь является создателем.
     :param db: Сессия базы данных
-    :param user: Объект пользователя из БД 
+    :param user: Объект пользователя из БД
+    :return: Список воркспейсов, созданных пользователем, в формате Pydantic моделей
     """
-    result = await db.execute(select(WorkspaceUser).where(WorkspaceUser.user_id == user.id))
+    # Выбираем воркспейсы, где текущий пользователь указан как создатель
+    result = await db.execute(
+        select(Workspace).where(Workspace.created_by == user.id)
+    )
     workspaces = result.scalars().all()
-    return [WorkspaceUser.model_validate(w) for w in workspaces]
+
+    # Возвращаем список воркспейсов в формате Pydantic моделей
+    return [WorkspaceResponse.model_validate(w) for w in workspaces]
