@@ -60,11 +60,11 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> UserResponse:
     :param user_data: Данные для создания пользователя.
     :return: Созданный пользователь в формате Pydantic модели.
     """
-    hashed_password = hash_password(user_data.get("password"))
+    hashed_password = hash_password(user_data.password)
     new_user = User(
         name=user_data["name"],
         email=user_data.get("email"),
-        telegram_id=hash_password if not user_data.get("telegram_id") else None,
+        telegram_id=hashed_password if not user_data.get("telegram_id") else None,
         password=user_data.get("password", None),  # Может быть None для Telegram
     )
     try:
