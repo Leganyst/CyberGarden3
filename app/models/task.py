@@ -26,7 +26,7 @@ class Task(Base):
     due_date: Mapped[date] = mapped_column(Date, nullable=True, comment="Срок выполнения задачи")
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="Флаг выполнения задачи")
     priority: Mapped[str] = mapped_column(
-        String(50), default="normal", nullable=False, comment="Приоритет задачи (low, normal, high)"
+        String(50), default=None, nullable=True, comment="Приоритет задачи (None, low, normal, high)"
     )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=datetime.now, nullable=False, comment="Дата создания записи"

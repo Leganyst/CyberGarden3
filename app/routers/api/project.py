@@ -9,9 +9,10 @@ from app.crud.project import (
     delete_project,
     get_project_by_id,
     get_tasks_for_project,
+    get_all_projects
 )
 from app.routers.dependencies.jwt_functions import get_current_user
-from app.routers.dependencies.permissions import check_workspace_owner
+from app.routers.dependencies.permissions import check_workspace_owner, check_workspace_access
 from app.models.user import User
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -50,7 +51,7 @@ async def get_project_endpoint(
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
     # Здесь предполагается функция check_workspace_access для редакторов/читателей
-    if not await check_workspace_access(workspace_id, current_user, db):
+    if not await check_workspace_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return project
@@ -112,8 +113,21 @@ async def get_project_tasks_endpoint(
 
     # Проверка прав доступа на уровне рабочего пространства
     workspace_id = project.workspace_id
-    if not await check_workspace_access(workspace_id, current_user, db):
+    if not await check_workspace_access(workspace_id, current_user, db, roles=["admin", "editor", "viewer"]):
         raise HTTPException(status_code=403, detail="Access denied")
 
     tasks = await get_tasks_for_project(db, project_id)
     return tasks
+
+
+@router.get("/{workspace_id}/projects/all", response_model=List[ProjectResponse])
+async def get_all_projects_for_user(
+    workspace_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получение всех проектов для пользователя. Доступно для всех пользователей.
+    """
+    projects = await get_all_projects(db, current_user, workspace_id)
+    return projects

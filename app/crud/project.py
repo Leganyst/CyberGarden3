@@ -3,6 +3,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from app.models.project import Project
+from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectWithTasks
 from app.models.task import Task
 from app.schemas.task import TaskResponse
@@ -138,3 +139,16 @@ async def get_workspace_id_by_project_id(db: AsyncSession, project_id: int) -> i
         raise HTTPException(status_code=404, detail="Project not found")
 
     return workspace_id
+
+async def get_all_projects(db: AsyncSession, user: User, workspace_id: int):
+    """
+    Извлекает все проекты для пользователя.
+    :param db: Сессия базы данных.
+    :param user: Пользователь.
+    :return: Список проектов в формате Pydantic моделей.
+    """
+    
+    result = await db.execute(select(Project).where(Project.created_by == user.id).where(Project.workspace_id == workspace_id))
+    projects = result.scalars().all()
+    return [ProjectResponse.model_validate(project) for project in projects]
+    

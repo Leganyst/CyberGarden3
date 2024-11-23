@@ -31,12 +31,16 @@ async def create_task_endpoint(
     """
     Создание новой задачи. Доступно для создателя и редактора рабочего пространства.
     """
+    # Проверка прав доступа (создатель или редактор рабочего пространства)
     await check_workspace_editor_or_owner(task_data.project_id, current_user, db)
 
+    # Устанавливаем текущего пользователя как создателя задачи
     task_data.created_by = current_user.id
-    task = await create_task(db, task_data)
-    return task
 
+    # Создание задачи (и напоминания, если указано reminder_time)
+    task = await create_task(db, task_data)
+
+    return task
 
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task_endpoint(

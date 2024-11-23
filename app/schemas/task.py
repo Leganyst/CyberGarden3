@@ -9,7 +9,7 @@ class TaskBase(BaseModel):
     """
     name: str = Field(..., max_length=150, description="Название задачи")
     due_date: Optional[date] = Field(None, description="Дата выполнения задачи")
-    priority: Optional[str] = Field("normal", description="Приоритет задачи (low, normal, high)")
+    priority: Optional[str] = Field(None, description="Приоритет задачи (None, low, normal, high)")
 
 
 class TaskCreate(TaskBase):
@@ -19,6 +19,8 @@ class TaskCreate(TaskBase):
     project_id: int = Field(..., description="ID проекта, к которому относится задача")
     created_by: int = Field(..., description="ID пользователя, создавшего задачу")
     assigned_to: Optional[int] = Field(None, description="ID пользователя, которому назначена задача")
+    reminder_time: Optional[datetime] = Field(None, description="Время напоминания для задачи (опционально)")
+
 
 
 class TaskUpdate(BaseModel):
