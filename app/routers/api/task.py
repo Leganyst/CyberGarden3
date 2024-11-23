@@ -23,6 +23,8 @@ from app.routers.dependencies.permissions import (
 from app.models.user import User
 from datetime import date
 from fastapi import Query
+from app.schemas.comments import CommentsListResponse
+from app.models.comments import Comment
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -185,3 +187,28 @@ async def get_user_tasks_by_date_endpoint(
     """
     tasks = await get_user_tasks_by_date(db, current_user.id, target_date)
     return tasks
+
+
+@router.get("/{task_id}/comments", response_model=CommentsListResponse, status_code=status.HTTP_200_OK)
+async def get_task_comments(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получение всех комментариев задачи.
+    """
+    # Проверяем права доступа к задаче
+    task = await get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not await check_workspace_access(task.project.workspace_id, current_user, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Извлекаем комментарии задачи
+    result = await db.execute(
+        select(Comment).where(Comment.task_id == task_id).order_by(Comment.created_at)
+    )
+    comments = result.scalars().all()
+
+    return CommentsListResponse(comments=comments)
