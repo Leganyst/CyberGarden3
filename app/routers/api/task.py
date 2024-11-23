@@ -1,30 +1,29 @@
-import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from app.models.project import Project
-from app.models.workspace import Workspace
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from typing import List
+from datetime import date
 from app.core.database import get_db
-from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
+from app.schemas.comments import CommentsListResponse
 from app.crud.task import (
     create_task,
     update_task,
     delete_task,
     get_task_by_id,
     get_tasks_for_project,
-    get_user_tasks_by_date
+    get_user_tasks_by_date,
+    get_task_with_reminders,
 )
 from app.routers.dependencies.jwt_functions import get_current_user
-from app.routers.dependencies.permissions import (
-    check_workspace_access,
-    check_workspace_editor_or_owner,
-)
 from app.models.user import User
-from datetime import date
-from fastapi import Query
-from app.schemas.comments import CommentsListResponse
+from app.models.project import Project
+from app.models.workspace import Workspace
 from app.models.comments import Comment
+from app.routers.dependencies.permissions import (
+    check_project_access,
+    check_project_editor_or_owner,
+)
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -36,18 +35,19 @@ async def create_task_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Создание новой задачи. Доступно для создателя и редактора рабочего пространства.
+    Создание новой задачи. Доступно для создателей и редакторов проекта.
     """
-    # Проверка прав доступа (создатель или редактор рабочего пространства)
-    await check_workspace_editor_or_owner(task_data.project_id, current_user, db)
+    # Проверка прав доступа (создатель или редактор проекта)
+    await check_project_editor_or_owner(task_data.project_id, current_user, db)
 
     # Устанавливаем текущего пользователя как создателя задачи
     task_data.created_by = current_user.id
 
     # Создание задачи (и напоминания, если указано reminder_time)
-    task = await create_task(db, task_data)
+    task = await create_task(db, task_data, current_user.id)
 
     return task
+
 
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task_endpoint(
@@ -56,32 +56,15 @@ async def get_task_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Получение информации о задаче. Доступно для всех уровней доступа.
+    Получение информации о задаче. Доступно для всех участников проекта.
     """
     # Извлечение задачи
     task = await get_task_by_id(db, task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
 
-    # Извлечение проекта, к которому принадлежит задача
-    result = await db.execute(
-        select(Project).where(Project.id == task.project_id)
-    )
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Извлечение рабочего пространства, к которому принадлежит проект
-    result = await db.execute(
-        select(Workspace).where(Workspace.id == project.workspace_id)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-
-    # Проверка прав доступа к рабочему пространству
-    if not await check_workspace_access(workspace.id, current_user, db):
-        raise HTTPException(status_code=403, detail="Access denied")
+    # Проверка прав доступа к проекту
+    await check_project_access(task.project_id, current_user, db)
 
     return task
 
@@ -94,66 +77,52 @@ async def update_task_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Редактирование задачи. Доступно для создателя и редактора рабочего пространства.
-    """
-    task = await get_task_by_id(db, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    # Проверяем права на редактирование
-    await check_workspace_editor_or_owner(task.project.workspace_id, current_user, db)
-
-    updated_task = await update_task(db, task_id, task_data)
-    return updated_task
-
-
-@router.patch("/{task_id}/complete/{mark_as_completed}", response_model=TaskResponse)
-async def mark_task_as_completed(
-    task_id: int,
-    mark_as_completed: bool = True,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Отметить задачу выполненной. Читатель может только для своих задач.
+    Редактирование задачи. Доступно для создателей и редакторов проекта.
     """
     # Извлечение задачи
     task = await get_task_by_id(db, task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
 
-    # Извлечение проекта, к которому принадлежит задача
-    result = await db.execute(
-        select(Project).where(Project.id == task.project_id)
-    )
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    # Проверяем права на редактирование
+    await check_project_editor_or_owner(task.project_id, current_user, db)
 
-    # Извлечение рабочего пространства, к которому принадлежит проект
-    result = await db.execute(
-        select(Workspace).where(Workspace.id == project.workspace_id)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+    # Обновление задачи
+    updated_task = await update_task(db, task_id, task_data)
 
-    # Проверяем права на рабочее пространство
-    if not await check_workspace_access(workspace.id, current_user, db):
-        raise HTTPException(status_code=403, detail="Access denied")
+    return updated_task
 
-    # Читатель может отметить только свои задачи
-    if task.assigned_to != current_user.id and not await check_workspace_editor_or_owner(
-        workspace.id, current_user, db
-    ):
-        raise HTTPException(status_code=403, detail="Access denied to complete this task")
 
-    # Отмечаем задачу выполненной
-    task.is_completed = mark_as_completed
-    await db.commit()
-    await db.refresh(task)
+@router.patch("/{task_id}/complete", response_model=TaskResponse)
+async def mark_task_as_completed(
+    task_id: int,
+    is_completed: bool = Query(True, description="Отметить задачу как выполненную или невыполненную"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Отметить задачу выполненной или невыполненной.
+    Читатель может изменить только свои задачи.
+    """
+    # Извлечение задачи
+    task = await get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
 
-    return TaskResponse.model_validate(task)
+    # Проверка прав доступа к проекту
+    has_access = await check_project_access(task.project_id, current_user, db)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Доступ запрещен.")
+
+    # Читатель может изменить только свои задачи
+    if task.assigned_to != current_user.id:
+        await check_project_editor_or_owner(task.project_id, current_user, db)
+
+    # Обновление статуса выполнения задачи
+    task_update_data = TaskUpdate(is_completed=is_completed)
+    updated_task = await update_task(db, task_id, task_update_data)
+
+    return updated_task
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -163,20 +132,40 @@ async def delete_task_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Удаление задачи. Доступно для создателя и редактора рабочего пространства.
+    Удаление задачи. Доступно для создателей и редакторов проекта.
     """
+    # Извлечение задачи
     task = await get_task_by_id(db, task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
 
     # Проверяем права на удаление
-    await check_workspace_editor_or_owner(task.project.workspace_id, current_user, db)
+    await check_project_editor_or_owner(task.project_id, current_user, db)
 
+    # Удаление задачи
     await delete_task(db, task_id)
-    return {"message": "Task deleted successfully"}
+    return {"detail": "Задача успешно удалена."}
 
 
-@router.get("/user/tasks", status_code=status.HTTP_200_OK)
+@router.get("/project/{project_id}", response_model=List[TaskResponse])
+async def get_tasks_for_project_endpoint(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получение всех задач для проекта. Доступно для всех участников проекта.
+    """
+    # Проверка прав доступа к проекту
+    await check_project_access(project_id, current_user, db)
+
+    # Получение задач
+    tasks = await get_tasks_for_project(db, project_id)
+
+    return tasks
+
+
+@router.get("/user/tasks", response_model=List[TaskResponse])
 async def get_user_tasks_by_date_endpoint(
     target_date: date = Query(..., description="Дата для получения задач (формат: YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
@@ -189,26 +178,47 @@ async def get_user_tasks_by_date_endpoint(
     return tasks
 
 
-@router.get("/{task_id}/comments", response_model=CommentsListResponse, status_code=status.HTTP_200_OK)
+@router.get("/{task_id}/comments", response_model=CommentsListResponse)
 async def get_task_comments(
     task_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Получение всех комментариев задачи.
+    Получение всех комментариев к задаче.
     """
-    # Проверяем права доступа к задаче
+    # Извлечение задачи
     task = await get_task_by_id(db, task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    if not await check_workspace_access(task.project.workspace_id, current_user, db):
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
 
-    # Извлекаем комментарии задачи
+    # Проверка прав доступа к проекту
+    await check_project_access(task.project_id, current_user, db)
+
+    # Извлечение комментариев
     result = await db.execute(
         select(Comment).where(Comment.task_id == task_id).order_by(Comment.created_at)
     )
     comments = result.scalars().all()
 
     return CommentsListResponse(comments=comments)
+
+
+@router.get("/{task_id}/with_reminders", response_model=TaskWithReminders)
+async def get_task_with_reminders_endpoint(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получение задачи вместе с ее напоминаниями.
+    """
+    # Извлечение задачи с напоминаниями
+    task = await get_task_with_reminders(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
+
+    # Проверка прав доступа к проекту
+    await check_project_access(task.project_id, current_user, db)
+
+    return task

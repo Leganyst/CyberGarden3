@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List
 
+
 class CommentBase(BaseModel):
     """
     Базовая схема для комментария.
@@ -15,11 +16,13 @@ class CommentCreate(CommentBase):
     """
     task_id: int = Field(..., description="ID задачи, к которой добавляется комментарий")
 
+
 class CommentUpdate(BaseModel):
     """
     Схема для обновления существующего комментария.
     """
     content: str = Field(..., max_length=1000, description="Обновлённый текст комментария")
+
 
 class CommentResponse(CommentBase):
     """
