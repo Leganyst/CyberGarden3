@@ -185,3 +185,28 @@ async def delete_task(db: AsyncSession, task_id: int) -> bool:
     await db.delete(task)
     await db.commit()
     return True
+
+
+async def get_user_assigned_tasks(db: AsyncSession, user_id: int) -> List[TaskResponse]:
+    """
+    Получает все задачи, назначенные пользователю.
+    :param db: Сессия базы данных.
+    :param user_id: ID пользователя.
+    :return: Список задач.
+    """
+    result = await db.execute(select(Task).where(Task.assigned_to == user_id))
+    tasks = result.unique().scalars().all()  # Убираем дубли
+    return [TaskResponse.model_validate(task) for task in tasks]
+
+
+
+async def get_project_tasks(db: AsyncSession, project_id: int) -> List[TaskResponse]:
+    """
+    Получает все задачи для указанного проекта.
+    :param db: Сессия базы данных.
+    :param project_id: ID проекта.
+    :return: Список задач.
+    """
+    result = await db.execute(select(Task).where(Task.project_id == project_id))
+    tasks = result.unique().scalars().all()  # Используем unique() перед scalars()
+    return [TaskResponse.model_validate(task) for task in tasks]

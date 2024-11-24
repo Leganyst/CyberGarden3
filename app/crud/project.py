@@ -169,7 +169,13 @@ async def get_all_projects(db: AsyncSession, user: User, workspace_id: int):
     :return: Список проектов в формате Pydantic моделей.
     """
     
-    result = await db.execute(select(Project).where(Project.created_by == user.id).where(Project.workspace_id == workspace_id))
+    result = await db.execute(
+        select(Project)
+        .filter(
+            Project.created_by == user.id,
+            Project.workspace_id == workspace_id
+        )
+    )
     projects = result.scalars().all()
     return [ProjectResponse.model_validate(project) for project in projects]
     
