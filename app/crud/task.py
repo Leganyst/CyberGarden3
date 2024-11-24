@@ -209,9 +209,33 @@ async def get_project_tasks(db: AsyncSession, project_id: int) -> List[TaskRespo
     :param project_id: ID проекта.
     :return: Список задач.
     """
-    result = await db.execute(select(Task).where(Task.project_id == project_id))
-    tasks = result.unique().scalars().all()  # Используем unique() перед scalars()
-    return [TaskResponse.model_validate(task) for task in tasks]
+    # Выполняем запрос для получения задач
+    result = await db.execute(
+        select(Task)
+        .where(Task.project_id == project_id)
+        .options(joinedload(Task.parent_task))  # Загружаем связанные данные для parent_task
+    )
+    tasks = result.unique().scalars().all()  # Убираем дубликаты и извлекаем результаты
+
+    # Создаем список задач в формате Pydantic модели
+    return [
+        TaskResponse(
+            id=task.id,
+            name=task.name,
+            description=task.description,
+            status=task.status,
+            priority=task.priority,
+            due_date=task.due_date,
+            is_completed=task.is_completed,
+            created_by=task.created_by,
+            assigned_to=task.assigned_to,
+            project_id=task.project_id,
+            created_at=task.created_at,
+            updated_at=task.updated_at,
+            parent_task=task.parent_task_id,  # Используем parent_task_id для сериализации
+        )
+        for task in tasks
+    ]
 
 
 async def delete_task(db: AsyncSession, task_id: int) -> bool:
