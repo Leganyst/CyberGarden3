@@ -10,11 +10,6 @@ services:
     depends_on:
       - db
     restart: unless-stopped
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
 
   db:
     image: postgres:13
@@ -30,6 +25,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
+  frontend:
+    image: cevka321312/frontend-app:latest # Образ с Docker Hub
+    ports:
+      - "3000:80" # Подключаем фронт на порт 3000
+    restart: unless-stopped
 
   nginx:
     image: nginx:latest
