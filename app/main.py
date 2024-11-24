@@ -16,6 +16,7 @@ from app.routers.api.comments import router as comments_router
 from app.routers.api.load_test_data import router as load_test_data_router
 from app.routers.api.workspace_user import router as workspace_user_router
 from app.routers.api.invites import router as invites_router
+from app.routers.api.statistics import router as statistics_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -55,3 +56,4 @@ app.include_router(comments_router)
 app.include_router(load_test_data_router)
 app.include_router(workspace_user_router)
 app.include_router(invites_router)
+app.include_router(statistics_router)
