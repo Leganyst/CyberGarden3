@@ -85,7 +85,7 @@ class TaskResponse(TaskBase):
     updated_at: datetime = Field(..., description="Дата последнего обновления задачи")
     parent_task: Optional[int] = Field(None, description="ID родительской задачи")
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TaskWithReminders(TaskResponse):
     """

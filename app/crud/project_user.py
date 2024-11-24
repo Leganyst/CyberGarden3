@@ -73,3 +73,18 @@ async def get_users_in_project(db: AsyncSession, project_id: int):
     result = await db.execute(select(ProjectUser).where(ProjectUser.project_id == project_id))
     project_users = result.scalars().all()
     return [ProjectUserResponse.model_validate(pu) for pu in project_users]
+
+
+async def add_user_to_project(
+    db: AsyncSession, project_id: int, user_id: int, access_level: str
+):
+    """
+    Добавляет пользователя в проект с указанным уровнем доступа.
+    """
+    project_user = ProjectUser(
+        project_id=project_id,
+        user_id=user_id,
+        access_level=access_level,
+    )
+    db.add(project_user)
+    await db.commit()
