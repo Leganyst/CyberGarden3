@@ -53,7 +53,6 @@ async def check_project_editor_or_owner(
     """
     Проверяет, является ли пользователь администратором или членом проекта (editor).
     """
-    
     access_level = await get_user_project_access_level(db, project_id, current_user.id)
 
     if access_level in ['admin', 'member']:
@@ -145,3 +144,35 @@ async def check_workspace_owner(
         raise HTTPException(status_code=403, detail="У вас нет прав для выполнения этого действия.")
 
     return True  # Пользователь является владельцем рабочего пространства
+
+
+async def check_task_update_permission(
+    task_id: int,
+    current_user: User,
+    db: AsyncSession,
+) -> tuple[bool, bool]:
+    """
+    Проверяет права пользователя на обновление задачи.
+    - Возвращает два флага:
+      1. Может ли пользователь изменять содержание задачи.
+      2. Может ли пользователь изменять статус выполнения задачи.
+    """
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
+
+    access_level = await get_user_project_access_level(db, task.project_id, current_user.id)
+
+    # Проверка прав на изменение содержания задачи
+    can_edit_content = access_level in ['admin', 'member']
+
+    # Проверка прав на изменение статуса выполнения задачи
+    can_update_completion = (
+        access_level == 'admin' or
+        (access_level == 'member' and task.assigned_to == current_user.id)
+    )
+
+    if not (can_edit_content or can_update_completion):
+        raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+    return can_edit_content, can_update_completion

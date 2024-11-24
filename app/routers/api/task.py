@@ -5,15 +5,20 @@ from app.core.database import get_db
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.crud.task import (
     create_task,
+    delete_task,
     get_project_tasks,
     get_user_assigned_tasks,
     get_task_by_id,
+    update_task,
 )
 from app.routers.dependencies.jwt_functions import get_current_user
 from app.models.user import User
 from app.routers.dependencies.permissions import (
     check_project_access,
     check_project_editor_or_owner,
+    check_task_completion_permission,
+    check_task_update_permission,
+    get_user_project_access_level,
 )
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -207,3 +212,58 @@ async def get_task_endpoint(
         raise HTTPException(status_code=404, detail="Задача не найдена.")
     await check_project_access(task.project_id, current_user, db)
     return task
+
+
+@router.patch("/{task_id}", response_model=TaskResponse, status_code=status.HTTP_200_OK)
+async def update_task_endpoint(
+    task_id: int,
+    task_data: TaskUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Обновляет данные задачи.
+    - Содержание задачи (название, описание, приоритет и т.д.) может менять редактор или администратор проекта.
+    - Флаг выполнения задачи (is_completed) может менять администратор или член проекта, если он исполнитель задачи.
+    """
+    # Проверка прав
+    can_edit_content, can_update_completion = await check_task_update_permission(task_id, current_user, db)
+
+    # Обновление задачи
+    updated_task = await update_task(
+        db=db,
+        task_id=task_id,
+        task_data=task_data,
+        current_user=current_user,
+        is_editor_or_admin=can_edit_content,
+        can_update_completion=can_update_completion,
+    )
+
+    return updated_task
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_endpoint(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Удаляет задачу.
+    Удалять задачу могут только редакторы (member) или администраторы (admin) проекта.
+    """
+    # Проверяем существование задачи
+    task = await get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
+
+    # Проверяем уровень доступа пользователя
+    access_level = await get_user_project_access_level(db, task.project_id, current_user.id)
+
+    if access_level not in ["admin", "member"]:
+        raise HTTPException(status_code=403, detail="У пользователя нет прав на удаление задачи.")
+
+    # Удаление задачи
+    await delete_task(db, task_id)
+
+    return {"message": "Задача успешно удалена."}

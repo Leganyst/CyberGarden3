@@ -105,9 +105,11 @@ class Task(Base):
         "Comment", back_populates="task", lazy="selectin"
     )
     reminders: Mapped[List["Reminder"]] = relationship(
-        "Reminder", back_populates="task", lazy="joined"
+        "Reminder",
+        back_populates="task",
+        cascade="all, delete-orphan",  # Каскадное удаление напоминаний
+        lazy="joined",
     )
-
     # Связи для вложенных задач
     parent_task: Mapped[Optional["Task"]] = relationship(
         "Task",
