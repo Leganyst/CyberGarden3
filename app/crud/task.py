@@ -82,24 +82,26 @@ async def update_task(
     task_id: int,
     task_data: TaskUpdate,
     current_user: User,
-    is_editor_or_admin: bool,
+    can_edit_content: bool,
+    can_update_completion: bool,
 ) -> TaskResponse:
     """
     Обновляет данные задачи.
     - Содержание задачи могут менять редакторы или администраторы проекта.
-    - Флаг выполнения задачи может менять любой участник проекта.
+    - Флаг выполнения задачи может менять администратор или член проекта, если он исполнитель задачи.
 
     :param db: Сессия базы данных.
     :param task_id: ID задачи.
     :param task_data: Данные для обновления задачи.
     :param current_user: Текущий пользователь.
-    :param is_editor_or_admin: Флаг, определяющий, является ли пользователь редактором или администратором.
+    :param can_edit_content: Флаг, указывающий, может ли пользователь редактировать содержание задачи.
+    :param can_update_completion: Флаг, указывающий, может ли пользователь изменить флаг выполнения задачи.
     :return: Обновлённая задача.
     """
     result = await db.execute(
         select(Task)
         .where(Task.id == task_id)
-        .options(selectinload(Task.project))  # Загружаем связанные данные, если нужно
+        .options(selectinload(Task.project))
     )
     task = result.unique().scalar_one_or_none()
 
@@ -109,8 +111,8 @@ async def update_task(
             detail="Задача не найдена."
         )
 
-    # Обновляем поля, доступные только редактору или администратору
-    if is_editor_or_admin:
+    # Проверяем права на изменение содержания задачи
+    if can_edit_content:
         if task_data.name is not None:
             task.name = task_data.name
         if task_data.description is not None:
@@ -124,14 +126,15 @@ async def update_task(
         if task_data.assigned_to is not None:
             task.assigned_to = task_data.assigned_to
 
-    # Обновляем поля, доступные всем участникам
-    if task_data.is_completed is not None:
+    # Проверяем права на изменение флага выполнения задачи
+    if can_update_completion and task_data.is_completed is not None:
         task.is_completed = task_data.is_completed
 
     await db.commit()
     await db.refresh(task)
 
     return TaskResponse.model_validate(task)
+
 
 async def get_task_with_reminders(
     db: AsyncSession, task_id: int
@@ -230,7 +233,7 @@ async def get_project_tasks(db: AsyncSession, project_id: int) -> List[TaskRespo
             created_by=task.created_by,
             assigned_to=task.assigned_to,
             project_id=task.project_id,
-            created_at=task.created_at,
+            created_at=task.created_at, 
             updated_at=task.updated_at,
             parent_task=task.parent_task_id,  # Используем parent_task_id для сериализации
         )
