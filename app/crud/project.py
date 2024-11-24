@@ -10,17 +10,14 @@ from app.schemas.task import TaskResponse
 from fastapi import HTTPException
 from app.models.project_user import ProjectUser
 
-async def create_project(db: AsyncSession, project_data: ProjectCreate) -> bool:
+async def create_project(db: AsyncSession, project_data: ProjectCreate, user: User) -> bool:
     """
     Создает новый проект.
-    :param db: Сессия базы данных.
-    :param project_data: Данные для создания проекта.
-    :return: Созданный проект в формате Pydantic модели.
     """
     new_project = Project(
         name=project_data.name,
         workspace_id=project_data.workspace_id,
-        created_by=project_data.created_by,
+        created_by=user.id,  # Устанавливаем текущего пользователя как создателя
     )
     db.add(new_project)
     await db.commit()
@@ -29,13 +26,14 @@ async def create_project(db: AsyncSession, project_data: ProjectCreate) -> bool:
     # Добавляем создателя проекта как администратора
     project_admin = ProjectUser(
         project_id=new_project.id,
-        user_id=project_data.created_by,
+        user_id=user.id,
         access_level="admin",
     )
     db.add(project_admin)
     await db.commit()
 
     return True
+
 
 async def update_project(
     db: AsyncSession, project_id: int, project_data: ProjectUpdate

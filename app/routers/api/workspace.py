@@ -28,10 +28,10 @@ async def create_workspace_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Создание нового рабочего пространства. Доступно только авторизованным пользователям.
+    Создание нового рабочего пространства.
     """
-    workspace_data.created_by = current_user.id
-    workspace = await create_workspace(db, workspace_data)
+    workspace = await create_workspace(db, workspace_data, current_user)
+    return workspace
     
     return workspace
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)

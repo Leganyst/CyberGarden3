@@ -1,66 +1,65 @@
 from fastapi import HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.crud.project import get_project_by_id
 from app.models.user import User
 from app.models.project import Project
 from app.core.database import get_db
 from app.models.workspace import Workspace
 from app.routers.dependencies.jwt_functions import get_current_user
+from typing import Optional
+from app.models.project_user import ProjectUser
+from app.models.task import Task
+
+
+async def get_user_project_access_level(
+    db: AsyncSession, project_id: int, user_id: int
+) -> Optional[str]:
+    """
+    Получает уровень доступа пользователя в проекте.
+    """
+    result = await db.execute(
+        select(ProjectUser.access_level)
+        .where(
+            ProjectUser.project_id == project_id,
+            ProjectUser.user_id == user_id
+        )
+    )
+    access_level = result.scalar_one_or_none()
+    return access_level
 
 
 async def check_project_owner(
     project_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    current_user: User,
+    db: AsyncSession,
 ):
     """
-    Проверяет, является ли текущий пользователь владельцем проекта.
+    Проверяет, является ли текущий пользователь администратором проекта.
     """
-    # Проверяем, что текущий пользователь создал проект
-    result = await db.execute(
-        select(Project)
-        .where(
-            Project.id == project_id,
-            Project.created_by == current_user.id
-        )
-    )
-    project = result.scalar_one_or_none()
+    access_level = await get_user_project_access_level(db, project_id, current_user.id)
 
-    if not project:
-        raise HTTPException(status_code=403, detail="Access denied")
+    if access_level == 'admin':
+        return True  # Пользователь является администратором проекта
 
-    return project
+    raise HTTPException(status_code=403, detail="Доступ запрещён.")
 
 
-async def check_workspace_owner(workspace_id: int,
-                                current_user: User = Depends(get_current_user),
-                                db: AsyncSession = Depends(get_db)):
+async def check_project_editor_or_owner(
+    project_id: int,
+    current_user: User,
+    db: AsyncSession,
+):
     """
-    Проверяет, является ли текущий пользователь владельцем рабочего пространства.
-
-    :param workspace_id: ID рабочего пространства
-    :param current_user: Объект текущего пользователя (модель User)
-    :param db: Сессия базы данных (AsyncSession)
-    :raises HTTPException: 404, если рабочее пространство не найдено
-    :raises HTTPException: 403, если пользователь не является владельцем
+    Проверяет, является ли пользователь администратором или членом проекта (editor).
     """
-    # Получаем рабочее пространство из базы данных
-    result = await db.execute(
-        select(Workspace).where(Workspace.id == workspace_id)
-    )
-    workspace = result.scalar_one_or_none()
+    
+    access_level = await get_user_project_access_level(db, project_id, current_user.id)
 
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Рабочее пространство не найдено."
-        )
+    if access_level in ['admin', 'member']:
+        return True  # Пользователь имеет права редактирования
 
-    if workspace.created_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="У вас нет прав для выполнения этого действия."
-        )
+    raise HTTPException(status_code=403, detail="Доступ запрещён.")
 
 
 async def check_project_access(
@@ -69,70 +68,80 @@ async def check_project_access(
     db: AsyncSession,
 ):
     """
-    Проверяет, имеет ли пользователь доступ к проекту (как создатель или участник через воркспейс).
+    Проверяет, имеет ли пользователь доступ к проекту (admin, member или viewer).
     """
-    # Проверяем, что пользователь создал проект
-    result = await db.execute(
-        select(Project)
-        .where(Project.id == project_id)
-    )
-    project = result.scalar_one_or_none()
-
+    project = await get_project_by_id(db, project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Проект не найден.")
+    
+    access_level = await get_user_project_access_level(db, project_id, current_user.id)
 
-    if project.created_by == current_user.id:
-        return True  # Пользователь — создатель проекта
+    if access_level in ['admin', 'member', 'viewer']:
+        return True  # Пользователь имеет доступ к проекту
 
-    # Проверяем, что пользователь имеет доступ через воркспейс
-    result = await db.execute(
-        select(Project)
-        .where(
-            Project.workspace_id == project.workspace_id,
-            Project.created_by == current_user.id
-        )
-    )
-    if result.scalar_one_or_none():
-        return True  # Пользователь имеет доступ через воркспейс
+    raise HTTPException(status_code=403, detail="Доступ запрещён.")
 
-    raise HTTPException(status_code=403, detail="Access denied")
 
-async def check_project_editor_or_owner(
+async def check_project_viewer_or_higher(
     project_id: int,
     current_user: User,
     db: AsyncSession,
 ):
     """
-    Проверяет, является ли пользователь владельцем или редактором проекта.
-    :param project_id: ID проекта.
-    :param current_user: Объект текущего авторизованного пользователя.
-    :param db: Сессия базы данных.
-    :raises HTTPException: Если пользователь не имеет доступа.
-    :return: True, если пользователь имеет доступ.
+    Проверяет, имеет ли пользователь уровень доступа как минимум viewer.
     """
-    # Проверяем, что пользователь является создателем проекта
+    access_level = await get_user_project_access_level(db, project_id, current_user.id)
+
+    if access_level in ['admin', 'member', 'viewer']:
+        return True  # Пользователь имеет права просмотра
+
+    raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+
+async def check_task_completion_permission(
+    task_id: int,
+    current_user: User,
+    db: AsyncSession,
+):
+    """
+    Проверяет, может ли пользователь отметить задачу как выполненную.
+    """
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена.")
+
+    # Проверяем уровень доступа пользователя к проекту
+    access_level = await get_user_project_access_level(db, task.project_id, current_user.id)
+
+    if access_level == 'admin':
+        return True  # Администратор может отметить любую задачу
+
+    if access_level == 'member':
+        return True  # Член проекта может отметить любую задачу
+
+    if access_level == 'viewer' and task.assigned_to == current_user.id:
+        return True  # Читатель может отметить только свои задачи
+
+    raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+
+async def check_workspace_owner(
+    workspace_id: int,
+    current_user: User,
+    db: AsyncSession,
+):
+    """
+    Проверяет, является ли текущий пользователь владельцем рабочего пространства.
+    """
     result = await db.execute(
-        select(Project)
-        .where(Project.id == project_id)
+        select(Workspace).where(Workspace.id == workspace_id)
     )
-    project = result.scalar_one_or_none()
+    workspace = result.scalar_one_or_none()
 
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Рабочее пространство не найдено.")
 
-    if project.created_by == current_user.id:
-        return True  # Пользователь — создатель проекта
+    if workspace.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="У вас нет прав для выполнения этого действия.")
 
-    # Проверяем, что пользователь имеет доступ через воркспейс (как редактор)
-    result = await db.execute(
-        select(Project)
-        .where(
-            Project.workspace_id == project.workspace_id,
-            Project.created_by == current_user.id
-        )
-    )
-    if result.scalar_one_or_none():
-        return True  # Пользователь имеет доступ через воркспейс
-
-    # Если доступ не подтверждён, возвращаем ошибку
-    raise HTTPException(status_code=403, detail="Access denied")
+    return True  # Пользователь является владельцем рабочего пространства

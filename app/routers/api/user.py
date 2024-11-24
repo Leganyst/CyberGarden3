@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -8,6 +8,7 @@ from app.models.task import Task
 from app.models.reminder import Reminder
 from app.core.database import get_db
 from app.routers.dependencies.jwt_functions import get_current_user
+from app.crud.user import get_users_basic_info
 
 
 router = APIRouter(
@@ -56,3 +57,38 @@ async def get_user_reminders(
     return reminders_data
 
 
+@router.get(
+    "/basic-info",
+    summary="Получить базовую информацию о пользователях",
+    description="Возвращает список пользователей с минимальными полями: ID, имя и email.",
+    responses={
+        200: {
+            "description": "Список пользователей успешно получен.",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {"id": 1, "name": "John Doe", "email": "john.doe@example.com"},
+                        {"id": 2, "name": "Jane Smith", "email": "jane.smith@example.com"}
+                    ]
+                }
+            },
+        },
+        500: {"description": "Ошибка сервера."},
+    },
+)
+async def get_basic_users_info(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Возвращает список пользователей с минимальной информацией.
+    
+    ### Поля ответа:
+    - **id**: Уникальный идентификатор пользователя.
+    - **name**: Имя пользователя.
+    - **email**: Электронная почта пользователя.
+    """
+    try:
+        users = await get_users_basic_info(db)
+        return users
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -23,7 +23,7 @@ class ProjectUser(Base):
         comment="ID пользователя",
     )
     access_level: Mapped[str] = mapped_column(
-        String(50), nullable=False, comment="Уровень доступа (admin, member, viewer)"
+        String(50), nullable=False, comment="Уровень доступа (admin, member, viewer, invited)"
     )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
@@ -39,7 +39,10 @@ class ProjectUser(Base):
         comment="Дата последнего изменения записи",
     )
 
+    # Реляции
     project: Mapped["Project"] = relationship(
-        "Project", back_populates="users", lazy="noload"
+        "Project", back_populates="users", lazy="joined"
     )
-    user: Mapped["User"] = relationship("User", back_populates="projects", lazy="noload")
+    user: Mapped["User"] = relationship(
+        "User", back_populates="projects", lazy="joined"
+    )

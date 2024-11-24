@@ -86,3 +86,15 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User:
     """
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
+
+async def get_users_basic_info(db: AsyncSession):
+    """
+    Извлекает список пользователей с ограниченными полями (id, name, email).
+    :param db: Сессия базы данных.
+    :return: Список словарей с ограниченными полями.
+    """
+    result = await db.execute(
+        select(User.id, User.name, User.email)
+    )
+    users = result.all()  # Получаем все записи
+    return [{"id": user.id, "name": user.name, "email": user.email} for user in users]

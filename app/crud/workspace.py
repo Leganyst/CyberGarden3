@@ -8,21 +8,19 @@ from app.schemas.workspace import WorkspaceCreate, WorkspaceUpdate, WorkspaceRes
 from app.models.project_user import ProjectUser
 
 
-async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate) -> WorkspaceResponse:
+async def create_workspace(db: AsyncSession, workspace_data: WorkspaceCreate, current_user: User) -> WorkspaceResponse:
     """
     Создает новое рабочее пространство.
-    :param db: Сессия базы данных.
-    :param workspace_data: Данные для создания рабочего пространства.
-    :return: Созданное рабочее пространство в формате Pydantic модели.
     """
     new_workspace = Workspace(
         name=workspace_data.name,
-        created_by=workspace_data.created_by,
+        created_by=current_user.id,  # Устанавливаем текущего пользователя как создателя
     )
     db.add(new_workspace)
     await db.commit()
     await db.refresh(new_workspace)
     return WorkspaceResponse.model_validate(new_workspace)
+
 
 
 async def update_workspace(

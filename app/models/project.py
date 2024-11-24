@@ -51,5 +51,5 @@ class Project(Base):
         "Task", back_populates="project", lazy="selectin"
     )
     users: Mapped[List["ProjectUser"]] = relationship(
-        "ProjectUser", back_populates="project", lazy="selectin"
+        "ProjectUser", back_populates="project", lazy="noload"
     )
