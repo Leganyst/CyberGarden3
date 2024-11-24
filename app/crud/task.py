@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional, List
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskWithReminders
 from app.models.reminder import Reminder
 from datetime import date
@@ -76,59 +78,60 @@ async def create_task(db: AsyncSession, task_data: TaskCreate, current_user_id: 
     return task_response
 
 async def update_task(
-    db: AsyncSession, task_id: int, task_data: TaskUpdate
-) -> Optional[TaskResponse]:
+    db: AsyncSession,
+    task_id: int,
+    task_data: TaskUpdate,
+    current_user: User,
+    is_editor_or_admin: bool,
+) -> TaskResponse:
     """
     Обновляет данные задачи.
+    - Содержание задачи могут менять редакторы или администраторы проекта.
+    - Флаг выполнения задачи может менять любой участник проекта.
+
+    :param db: Сессия базы данных.
+    :param task_id: ID задачи.
+    :param task_data: Данные для обновления задачи.
+    :param current_user: Текущий пользователь.
+    :param is_editor_or_admin: Флаг, определяющий, является ли пользователь редактором или администратором.
+    :return: Обновлённая задача.
     """
-    task = await db.get(Task, task_id)
+    result = await db.execute(
+        select(Task)
+        .where(Task.id == task_id)
+        .options(selectinload(Task.project))  # Загружаем связанные данные, если нужно
+    )
+    task = result.unique().scalar_one_or_none()
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Задача не найдена."
         )
 
-    if task_data.name is not None:
-        task.name = task_data.name
-    if task_data.description is not None:
-        task.description = task_data.description
-    if task_data.status is not None:
-        task.status = task_data.status
-    if task_data.due_date is not None:
-        task.due_date = task_data.due_date
-    if task_data.priority is not None:
-        task.priority = task_data.priority
+    # Обновляем поля, доступные только редактору или администратору
+    if is_editor_or_admin:
+        if task_data.name is not None:
+            task.name = task_data.name
+        if task_data.description is not None:
+            task.description = task_data.description
+        if task_data.priority is not None:
+            task.priority = task_data.priority
+        if task_data.due_date is not None:
+            task.due_date = task_data.due_date
+        if task_data.status is not None:
+            task.status = task_data.status
+        if task_data.assigned_to is not None:
+            task.assigned_to = task_data.assigned_to
+
+    # Обновляем поля, доступные всем участникам
     if task_data.is_completed is not None:
         task.is_completed = task_data.is_completed
-    if task_data.assigned_to is not None:
-        task.assigned_to = task_data.assigned_to if task_data.assigned_to != 0 else None
-    if task_data.parent_task_id is not None:
-        # Проверяем, если указан parent_task_id, то родительская задача должна существовать
-        if task_data.parent_task_id:
-            parent_task = await db.get(Task, task_data.parent_task_id)
-            if not parent_task:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Родительская задача не найдена."
-                )
-        if task_data.parent_task_id == 0:
-            task_data.parent_task_id = None
-        task.parent_task_id = task_data.parent_task_id
 
-    # Фиксируем изменения
     await db.commit()
     await db.refresh(task)
 
     return TaskResponse.model_validate(task)
-
-async def get_task_by_id(db: AsyncSession, task_id: int) -> Optional[TaskResponse]:
-    """
-    Извлекает задачу по ID без предзагрузки подзадач.
-    """
-    task = await db.get(Task, task_id)
-    if task:
-        return TaskResponse.model_validate(task)
-    return None
 
 async def get_task_with_reminders(
     db: AsyncSession, task_id: int
@@ -199,7 +202,6 @@ async def get_user_assigned_tasks(db: AsyncSession, user_id: int) -> List[TaskRe
     return [TaskResponse.model_validate(task) for task in tasks]
 
 
-
 async def get_project_tasks(db: AsyncSession, project_id: int) -> List[TaskResponse]:
     """
     Получает все задачи для указанного проекта.
@@ -210,3 +212,42 @@ async def get_project_tasks(db: AsyncSession, project_id: int) -> List[TaskRespo
     result = await db.execute(select(Task).where(Task.project_id == project_id))
     tasks = result.unique().scalars().all()  # Используем unique() перед scalars()
     return [TaskResponse.model_validate(task) for task in tasks]
+
+
+async def delete_task(db: AsyncSession, task_id: int) -> bool:
+    """
+    Удаляет задачу по её ID.
+    Удалять задачу могут только редакторы (member) или администраторы (admin) проекта.
+
+    :param db: Сессия базы данных.
+    :param task_id: ID задачи.
+    :return: True, если удаление прошло успешно, иначе False.
+    """
+    # Извлекаем задачу с проектом
+    result = await db.execute(
+        select(Task).options(joinedload(Task.project)).where(Task.id == task_id).distinct()
+    )
+    task = result.unique().scalar_one_or_none()
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задача не найдена."
+        )
+
+    # Удаление задачи
+    await db.delete(task)
+    await db.commit()
+    return True
+
+async def get_task_by_id(db: AsyncSession, task_id: int) -> Optional[TaskResponse]:
+    """
+    Получает данные задачи по её ID.
+    """
+    result = await db.execute(
+        select(Task).where(Task.id == task_id).distinct()
+    )
+    task = result.unique().scalar_one_or_none()
+    if task:
+        return TaskResponse.model_validate(task)
+    return None
